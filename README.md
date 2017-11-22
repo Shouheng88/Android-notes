@@ -45,13 +45,13 @@
 ## 2、JVM：
 
 1. 内存模型以及分区，需要详细到每个区放什么。
-2. 堆里面的分区：Eden，survival from to，老年代，各自的特点。
+2. [堆里面的分区：Eden，survival from to，老年代，各自的特点。](https://github.com/Shouheng88/Java-Programming/blob/master/JVM/2.Java%E5%86%85%E5%AD%98%E5%8C%BA%E5%9F%9F%E5%92%8C%E5%86%85%E5%AD%98%E6%BA%A2%E5%87%BA%E5%BC%82%E5%B8%B8.md)
 3. 对象创建方法，对象的内存分配，对象的访问定位。
 4. GC的两种判定方法：引用计数与引用链。
-5. GC的三种收集方法：标记清除、标记整理、复制算法的原理与特点，分别用在什么地方，如果让你优化收集方法，有什么思路？
-5. GC收集器有哪些？CMS收集器与G1收集器的特点。
-6. Minor GC与Full GC分别在什么时候发生？
-7. 几种常用的内存调试工具：jmap、jstack、jconsole。
-8. 类加载的五个过程：加载、验证、准备、解析、初始化。
-9. 双亲委派模型：Bootstrap ClassLoader、Extension ClassLoader、ApplicationClassLoader。
+5. [GC的三种收集方法：标记清除、标记整理、复制算法的原理与特点，分别用在什么地方，如果让你优化收集方法，有什么思路？](https://github.com/Shouheng88/Java-Programming/blob/master/JVM/3.%E5%9E%83%E5%9C%BE%E6%94%B6%E9%9B%86%E5%99%A8%E4%B8%8E%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E7%AD%96%E7%95%A5.md)
+5. [GC收集器有哪些？CMS收集器与G1收集器的特点。](https://github.com/Shouheng88/Java-Programming/blob/master/JVM/3.%E5%9E%83%E5%9C%BE%E6%94%B6%E9%9B%86%E5%99%A8%E4%B8%8E%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E7%AD%96%E7%95%A5.md)
+6. [Minor GC与Full GC分别在什么时候发生？](https://github.com/Shouheng88/Java-Programming/blob/master/JVM/3.%E5%9E%83%E5%9C%BE%E6%94%B6%E9%9B%86%E5%99%A8%E4%B8%8E%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E7%AD%96%E7%95%A5.md)
+7. [几种常用的内存调试工具：jmap、jstack、jconsole。](https://github.com/Shouheng88/Java-Programming/blob/master/JVM/4.%E8%99%9A%E6%8B%9F%E6%9C%BA%E6%80%A7%E8%83%BD%E7%9B%91%E6%8E%A7%E4%B8%8E%E6%95%85%E9%9A%9C%E5%88%86%E6%9E%90%E5%B7%A5%E5%85%B7.md)
+8. [类加载的五个过程：加载、验证、准备、解析、初始化。](https://github.com/Shouheng88/Java-Programming/blob/master/JVM/6.%E8%99%9A%E6%8B%9F%E6%9C%BA%E7%B1%BB%E5%8A%A0%E8%BD%BD%E6%9C%BA%E5%88%B6.md)
+9. [双亲委派模型：Bootstrap ClassLoader、Extension ClassLoader、ApplicationClassLoader。](https://github.com/Shouheng88/Java-Programming/blob/master/JVM/6.%E8%99%9A%E6%8B%9F%E6%9C%BA%E7%B1%BB%E5%8A%A0%E8%BD%BD%E6%9C%BA%E5%88%B6.md)
 10. 分派：静态分派与动态分派。
