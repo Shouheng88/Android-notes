@@ -44,7 +44,7 @@
 
 ## 2、JVM：
 
-1. 内存模型以及分区，需要详细到每个区放什么。
+1. [内存模型以及分区，需要详细到每个区放什么。](https://github.com/Shouheng88/Java-Interview-List/blob/master/j2se/jvm-java%20%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B%20%E4%BB%A5%E5%8F%8A%E5%90%84%E4%B8%AA%E5%88%86%E5%8C%BA%E5%85%B7%E4%BD%93%E5%86%85%E5%AE%B9.md)
 2. [堆里面的分区：Eden，survival from to，老年代，各自的特点。](https://github.com/Shouheng88/Java-Programming/blob/master/JVM/2.Java%E5%86%85%E5%AD%98%E5%8C%BA%E5%9F%9F%E5%92%8C%E5%86%85%E5%AD%98%E6%BA%A2%E5%87%BA%E5%BC%82%E5%B8%B8.md)
 3. 对象创建方法，对象的内存分配，对象的访问定位。
 4. GC的两种判定方法：引用计数与引用链。
@@ -55,3 +55,109 @@
 8. [类加载的五个过程：加载、验证、准备、解析、初始化。](https://github.com/Shouheng88/Java-Programming/blob/master/JVM/6.%E8%99%9A%E6%8B%9F%E6%9C%BA%E7%B1%BB%E5%8A%A0%E8%BD%BD%E6%9C%BA%E5%88%B6.md)
 9. [双亲委派模型：Bootstrap ClassLoader、Extension ClassLoader、ApplicationClassLoader。](https://github.com/Shouheng88/Java-Programming/blob/master/JVM/6.%E8%99%9A%E6%8B%9F%E6%9C%BA%E7%B1%BB%E5%8A%A0%E8%BD%BD%E6%9C%BA%E5%88%B6.md)
 10. 分派：静态分派与动态分派。
+
+## 3、操作系统
+
+1. 进程和线程的区别。
+2. 死锁的必要条件，怎么处理死锁。
+3. Window内存管理方式：段存储，页存储，段页存储。
+4. 进程的几种状态。
+5. IPC几种通信方式。
+6. 什么是虚拟内存。
+7. 虚拟地址、逻辑地址、线性地址、物理地址的区别。
+
+## 4.TCP/IP
+  
+1. OSI与TCP/IP各层的结构与功能，都有哪些协议。
+2. TCP与UDP的区别。
+3. TCP报文结构。
+4. TCP的三次握手与四次挥手过程，各个状态名称与含义，TIMEWAIT的作用。
+5. TCP拥塞控制。
+6. TCP滑动窗口与回退N针协议。
+7. Http的报文结构。
+8. Http的状态码含义。
+9. Http request的几种类型。
+10. Http1.1和Http1.0的区别
+11. Http怎么处理长连接。
+12. Cookie与Session的作用于原理。
+13. 电脑上访问一个网页，整个过程是怎么样的：DNS、HTTP、TCP、OSPF、IP、ARP。
+14. Ping的整个过程。ICMP报文是什么。
+15. C/S模式下使用socket通信，几个关键函数。
+16. IP地址分类。
+17. 路由器与交换机区别。
+
+## 5、数据结构与算法
+  
+1. 链表与数组。
+2. 队列和栈，出栈与入栈。
+3. 链表的删除、插入、反向。
+4. 字符串操作。
+5. Hash表的hash函数，冲突解决方法有哪些。
+6. 各种排序：冒泡、选择、插入、希尔、归并、快排、堆排、桶排、基数的原理、平均时间复杂度、最坏时间复杂度、空间复杂度、是否稳定。
+7. 快排的partition函数与归并的Merge函数。
+8. 对冒泡与快排的改进。
+9. 二分查找，与变种二分查找。
+10. 二叉树、B+树、AVL树、红黑树、哈夫曼树。
+11. 二叉树的前中后续遍历：递归与非递归写法，层序遍历算法。
+12. 图的BFS与DFS算法，最小生成树prim算法与最短路径Dijkstra算法。
+13. KMP算法。
+14. 排列组合问题。
+15. 动态规划、贪心算法、分治算法。（一般不会问到）
+16. 大数据处理：类似10亿条数据找出最大的1000个数.........等等
+
+## 6、Android
+  
+1. Activity与Fragment的生命周期。
+2. Acitivty的四中启动模式与特点。
+3. Activity缓存方法。
+4. Service的生命周期，两种启动方法，有什么区别。
+5. 怎么保证service不被杀死。
+6. 广播的两种注册方法，有什么区别。
+7. Intent的使用方法，可以传递哪些数据类型。
+8. ContentProvider使用方法。
+9. Thread、AsycTask、IntentService的使用场景与特点。
+10. 五种布局：FrameLayout、LinearLayout、AbsoluteLayout、RelativeLayout、TableLayout各自特点及绘制效率对比。
+11. Android的数据存储形式。
+12. Sqlite的基本操作。
+13. Android中的MVC模式。
+14. Merge、ViewStub的作用。
+15. Json有什么优劣势。
+16. 动画有哪两类，各有什么特点？
+17. Handler、Loop消息队列模型，各部分的作用。
+18. 怎样退出终止App。
+19. Asset目录与res目录的区别。
+20. Android怎么加速启动Activity。
+21. Android内存优化方法：ListView优化，及时关闭资源，图片缓存等等。
+22. Android中弱引用与软引用的应用场景。
+23. Bitmap的四中属性，与每种属性队形的大小。
+24. View与View Group分类。自定义View过程：onMeasure()、onLayout()、onDraw()。
+25. Touch事件分发机制。
+26. Android长连接，怎么处理心跳机制。
+27. Zygote的启动过程。
+28. Android IPC:Binder原理。
+29. 你用过什么框架，是否看过源码，是否知道底层原理。
+30. Android5.0、6.0新特性。
+
+## 7、项目经验
+
+常问的问题：
+
+1. XXX（某个比较重要的点）是怎么实现的？
+2. 你在项目中遇到的最大的困难是什么，怎么解决的？
+3. 项目某个部分考虑的不够全面，如果XXXX，你怎么优化？
+4. XXX（一个新功能）需要实现，你有什么思路？
+
+## 8、你应该问的问题
+  
+面试里，最后面完之后一般面试官都会问你，你有没有什么要问他的。其实这个问题是有考究的，问好了其实是有加分的，一般不要问薪资，主要应该是：关于公司的、技术和自身成长的。
+  
+以下是我常问的几个问题，如果需要可以参考：
+  
+1. 贵公司一向以XXX著称，能不能说明一下公司这方面的特点？
+2. 贵公司XXX业务发展很好，这是公司发展的重点么？
+3. 对技术和业务怎么看？
+4. 贵公司一般的团队是多大，几个人负责一个产品或者业务？
+5. 贵公司的开发中是否会使用到一些最新技术？
+6. 对新人有没有什么培训，会不会安排导师？
+7. 对Full Stack怎么看？
+8. 你觉得我有哪些需要提高的地方？
