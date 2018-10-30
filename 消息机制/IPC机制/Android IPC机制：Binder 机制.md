@@ -36,7 +36,7 @@ Android 是基于 Linux 的，Linux 本身已经具有了许多的 `IPC` 机制�
 
 所以，我们可以使用下面的流程图来描述这个 IPC 通信的过程：
 
-![Binedr 通信的过程](Binder.png)
+![Binedr 通信的过程](src/Binder.png)
 
 注：上图中使用绿色标记的部分运行在用户空间，红色标记的部分运行在内核空间。
 
@@ -48,7 +48,7 @@ Android 是基于 Linux 的，Linux 本身已经具有了许多的 `IPC` 机制�
 
 当使用 `Binder` 进行通信的时候。`Binder` 驱动会先通过在 `mmap()` 在内核空间创建数据接收的缓存空间。接着在内核空间开辟一块内核缓存区，**建立内核缓存区和内核中数据接收缓存区之间的映射关系，以及内核中数据接收缓存区和接收进程用户空间地址的映射关系**（存在两个映射关系）。然后，发送方进程通过系统调用 `copy_from_user()` 将数据复制到内核中的内核缓存区，由于内核缓存区和接收进程的用户空间存在内存映射，因此也就相当于把数据发送到了接收进程的用户空间，这样便完成了一次进程间的通信。相对于传统的 `IPC`，`Binder` 只需要一次复制就完成了进程间的通信。这也是 `Binder` 相比于其他的 `IPC` 机制高效的原因。
 
-![mmap](Binder内存映射.png)
+![mmap](src/Binder内存映射.png)
 
 当 `Client` 将数据和要执行的方法的编号 (`code`) 传递给 `Server` 之后，`Server` 会根据编号触发服务中的方法。当方法执行完毕之后，再通过将数据写入自身的用户空间。因为 `Server` 的用户空间和内核中的数据缓冲区存在映射关系，所以也就相当于把结果写进了内核缓存区中。然后，内核再通过调用系统的 `copy_to_user()` 方法将数据写入到 `Client` 的用户空间。这样 `Client` 就完成了对服务的一次调用。
 
@@ -294,7 +294,7 @@ public class NoteService extends Service {
 
 于是，我们可以通过下面的这张图来总结在上面使用 AIDL 的过程中各部分扮演的角色：
 
-![AIDL](AIDL.png)
+![AIDL](src/AIDL.png)
 
 也就是客户端通过 `Proxy` 访问 `Binder` 驱动，然后 `Binder` 驱动调用 `Stub`，而 `Stub` 中调用我们的业务逻辑。这里的 `Proxy` 和 `Stub` 用来统一接口函数，`Proxy` 用来告诉我们远程服务中有哪些可用的方法，而具体的业务逻辑则由 `Stub` 来实现。`Binder` 的进程通信就发生在 `Proxy` 和 `Stub` 之间。
 
@@ -302,19 +302,19 @@ public class NoteService extends Service {
 
 上面是标准的 AIDL 的使用方式，实际在我们开发的时候好像并没有用到许多 AIDL。这是因为很多 API 隐藏了 AIDL 的实现细节，而只提供了一个 Manager。就像下图所示，你只需要与 Manager 进行交互就可以了：
 
-![AIDL Manager](AIDL_Manager.png)
+![AIDL Manager](src/AIDL_Manager.png)
 
 再加上 `ServiceManager`，一次完整的 IPC 过程中，各个模块的逻辑如下所示：
 
-![完整的 IPC 过程](Full_IPC.png)
+![完整的 IPC 过程](src/Full_IPC.png)
 
 如果用一个更加详尽的方式展示这个过程，那么它将是下面这样：
 
-![详细的 Binder 流程](Binder_流程.png)
+![详细的 Binder 流程](src/Binder_流程.png)
 
 最后，以获取定位服务的过程作为一个例子，那么在获取服务的过程中各个进程的状态如下所示。因为，这幅图中不仅包含了 `Binder` 相关的知识，同时涉及了许多 Android 系统层面的东西，对于自我提升会有许多帮助，因此将其 post 在这里。如果弄懂了上面的过程，看懂下面的整个过程也不会有太大的难度。
 
-![位置服务](AIDL_Location.png)
+![位置服务](src/AIDL_Location.png)
 
 ## 参考资料
 
