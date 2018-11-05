@@ -1,6 +1,8 @@
-# Window
+# Android 窗口管理机制详解
 
-View 体系的那篇文章 https://juejin.im/post/5bc5e3fbe51d450e7e51befa
+在之前的文章 [《View 体系详解：View 的工作流程》](https://juejin.im/post/5bc5e3fbe51d450e7e51befa) 中，我们分析了 View 的工作流程。在这篇文章中，我们提到过在 Activity 初始化 View 的时候会将 DecorView 添加到 Window 中。但是我们并没有更多得分析 Window 的整个管理过程。在这篇文章中我们将详细分析一下 Window 的添加、更新和管理等过程。
+
+## 
 
 添加一个 View
 

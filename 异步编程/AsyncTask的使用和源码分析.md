@@ -1,4 +1,4 @@
-# AsyncTask的使用和源码分析
+# AsyncTask 的使用和源码分析
 
 ## 1、AsyncTask的使用
 
@@ -104,7 +104,7 @@ private class DownloadFilesTask extends AsyncTask<URL, Integer, Long> {
     // 将上面的mWorker包装成FutureTask对象
     mFuture = new FutureTask<Result>(mWorker) {...};
 
-`execute`方法中使用到的`sDefaultExecutor`是一个串行的线程池，它的定义如下所示：
+`execute` 方法中使用到的 `sDefaultExecutor` 是一个串行的线程池，它的定义如下所示：
 
     public static final Executor SERIAL_EXECUTOR = new SerialExecutor();
     private static volatile Executor sDefaultExecutor = SERIAL_EXECUTOR;
@@ -196,7 +196,7 @@ private class DownloadFilesTask extends AsyncTask<URL, Integer, Long> {
         }
     }
 
-在一些书上可能会看到，说`Handler`是静态类型的，但我在源码中看到的是非静态类型的。静态类型的`Handler`就要求AsyncTask类必须在主线程中进行加载，因为静态成员会在类记载的时候进行初始化。如果我们在非主线程中用`new Handler()`创建了一个Handler，那么它会默认使用当前线程对应的`Looper`创建一个实例。但我们看上面的代码，这里在创建`Handler`的时候使用了`Looper.getMainLooper()`来获取主线程对应的`Looper`，因此AsyncTask类必须在主线程中进行加载就不是必需的了。
+在一些书上可能会看到，说 `Handler` 是静态类型的，但我在源码中看到的是非静态类型的。静态类型的 `Handler` 就要求AsyncTask类必须在主线程中进行加载，因为静态成员会在类记载的时候进行初始化。如果我们在非主线程中用 `new Handler()` 创建了一个Handler，那么它会默认使用当前线程对应的 `Looper` 创建一个实例。但我们看上面的代码，这里在创建 `Handler` 的时候使用了 `Looper.getMainLooper()` 来获取主线程对应的 `Looper`，因此AsyncTask类必须在主线程中进行加载就不是必需的了。
 
 AsyncTask中还有一些其他的细节和方法，但通过上面主体内容的分析，理解它们已经不是问题，因此不再继续分析下去，感兴趣的可以看下源码的实现。
 
