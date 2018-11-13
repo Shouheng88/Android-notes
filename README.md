@@ -48,7 +48,7 @@
 
 ### Android 常用的 API 源码分析
 
-- 内存缓存框架 LurCache 的源码分析：[《LruCache 的使用和源码分析》](数据存储/LruCache.md)
+- 内存缓存框架 LurCache 的源码分析：[《LruCache 的使用和源码分析》](API简析/LruCache.md)
 
 ### 高阶技能
 

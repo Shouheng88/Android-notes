@@ -1,9 +1,19 @@
-## Java和Android API
+# Android 面试题总结
 
-- [x] SpareArray 原理：用来模拟系数矩阵，用来取代 Android 中的 HashMap，
-- [x] LRUCache原理：[LruCache源码分析](https://juejin.im/post/5afc29caf265da0b7f44be28)
+## 1、Java API 部分
+
+- [x] 【LruCache 的原理】答案：参考文章：[《Android 内存缓存框架 LruCache 的源码分析》](https://juejin.im/post/5bea581be51d451402494af2)
+- [x] 【SparseArray 的原理】答案：SparseArray 主要用来替换 Java 中的 HashMap，因为 HashMap 将整数类型的键默认装箱成 Integer. 而 SparseArray 通过内部维护两个数组来进行映射，并且使用二分查找寻找指定的键。SparseArray 用于当 HashMap 的键是 Integer 的情况，它会在内部维护一个 int 类型的数组来存储键。同理，还有 LongSparseArray, BooleanSparseArray 等，都是用来通过减少装箱操作来节省内存空间的。但是，因为它内部使用二分查找寻找键，所以其效率不如 HashMap 高，所以当要存储的键值对的数量非常大的时候，建议使用 HashMap. 
+- [x] 【java 注解】答案：重点在于 Java 注解的两种使用方式，一个是基于反射的，一个是基于 AnnotationProcessor 的，参考文章[《Java 注解及其在 Android 中的应用》](https://juejin.im/post/5b824b8751882542f105447d0).
+- [x] 【ArrayList 与 LinkedList 区别】答案：老生常谈的话题，一个前面的基于动态数组，后面的基于双向链表。
+- [x] 【object 类的 equal() 和 hashcode() 方法重写】答案：两个本地都具有决定一个对象身份功能，所以两者的行为必须一致，覆写这两个方法需要遵循一定的原则，可以通过参考《Effect Java》一书的相关章节详细了解。一般，我们不会覆写该方法，可以通过 IDEA 的工具生成该方法。
+
+- [x] 【StringBuffer 与 StringBuilder 的区别】答案：前者是线程安全的，每个方法上面都使用 synchronized 关键字进行了加锁，后者是非线程安全的。一般情况下使用 StringBuilder 即可，因为非多线程环境进行加锁是一种没有必要的开销。
+
+## 2、并发编程相关
+
+- [x] 【ThreadLocal 原理】答案：线程局部变量，参考文章：[ThreadLocal的使用及其源码实现](https://juejin.im/post/5b44cd7c6fb9a04f980cb065)
 - [ ] HashMap实现原理，ConcurrentHashMap 的实现原理
-- [x] ThreadLocal原理：[ThreadLocal的使用及其源码实现](https://juejin.im/post/5b44cd7c6fb9a04f980cb065)
 - [ ] 线程间 操作 List
 - [ ] OSGI
 - [ ] synchronized与Lock的区别
@@ -17,10 +27,8 @@
 - [ ] 开启线程的三种方式,run()和start()方法区别
 - [ ] Java线程池
 - [ ] 多线程（关于AsyncTask缺陷引发的思考）
-- [ ] java注解 
 - [ ] static synchronized 方法的多线程访问和作用，同一个类里面两个synchronized方法，两个线程同时访问的问题
 - [ ] 对Java中String的了解
-- [ ] ArrayList与LinkedList区别
 - [ ] string to integer
 - [ ] volatile的原理
 - [ ] synchronize的原理
@@ -28,8 +36,6 @@
 - [ ] AsyncTask机制，如何取消AsyncTask
 - [ ] 手写生产者/消费者模式
 - [ ] 如何实现线程同步？
-- [ ] arraylist 与 linkedlist 异同？
-- [ ] object类的equal 和hashcode 方法重写，为什么？
 - [ ] hashmap如何put数据（从hashmap源码角度讲解）？
 - [ ] String 为什么要设计成不可变的？
 - [ ] List 和 Map 的实现方式以及存储方式。
@@ -46,7 +52,6 @@
 - [ ] 死锁的概念，怎么避免死锁
 - [ ] 内部类和静态内部类和匿名内部类，以及项目中的应用
 - [ ] ReentrantLock的内部实现
-- [ ] String buffer 与string builder 的区别？
 - [ ] 集合的接口和具体实现类，介绍
 - [ ] TreeMap具体实现
 - [ ] synchronized与ReentrantLock
