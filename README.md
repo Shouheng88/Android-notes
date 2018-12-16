@@ -5,7 +5,7 @@
 > [Java 学习笔记整理](https://github.com/Shouheng88/Awesome-Java)  
 > [Python 学习笔记整理](https://github.com/Shouheng88/Python-notes)
 
-## 1、笔记整理
+## 1、个人文章整理
 
 ### 通信机制
 
@@ -65,6 +65,10 @@
 
 - [《2017 年 Android 高级工程师面试题总结》（含答案，编辑中）](笔试面试/Android高级软件工程师2017.md)
 ：2017 年 Android 中级、高级工程师面试题总结
+
+### 其他
+
+- [《马克笔记—Android 端开源的 Markdown 笔记应用》](其他/MarkNote版本1的.md)
 
 ## 2、资源整理
 
