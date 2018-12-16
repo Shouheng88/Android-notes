@@ -1,6 +1,6 @@
 # 马克笔记—Android 端开源的 Markdown 笔记应用
 
-
+![App 导引](https://github.com/Shouheng88/MarkNote/blob/master/resources/images/app.png?raw=true)
 
 > 马克笔记是运行在Android设备上面的一款开源的Markdown笔记，它的功能开发得已经比较完善，已经能够满足大部分用户的需求。现在将其开源到Github上面，用来交流和学习。当然，更希望你能够参与到项目的开发当中，帮助马克笔记变得更加有用。
 
