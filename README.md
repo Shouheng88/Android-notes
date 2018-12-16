@@ -69,6 +69,7 @@
 ### 其他
 
 - [《马克笔记—Android 端开源的 Markdown 笔记应用》](其他/MarkNote版本1的.md)
+- [《承上启下：Markdown 笔记应用 MarkNote 的重构之路》](其他/MarkNote版本2.md)
 
 ## 2、资源整理
 
