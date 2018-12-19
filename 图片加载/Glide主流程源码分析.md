@@ -415,7 +415,208 @@ RequestManager 中的 into() 具有多个重载方法，它们最终都会调用
 
 #### onSizeReady(int, int)
 
+    public void onSizeReady(int width, int height) {
+        stateVerifier.throwIfRecycled();
+        if (status != Status.WAITING_FOR_SIZE) {
+            return;
+        }
+        status = Status.RUNNING;
+
+        float sizeMultiplier = requestOptions.getSizeMultiplier();
+        this.width = maybeApplySizeMultiplier(width, sizeMultiplier);
+        this.height = maybeApplySizeMultiplier(height, sizeMultiplier);
+
+        loadStatus = engine.load(/* 各种参数 */);
+
+        if (status != Status.RUNNING) {
+            loadStatus = null;
+        }
+    }
+
+根据指定的参数开始加载图片，必须在主线程中调用。
+
+    public <R> LoadStatus load(/* 各种参数 */) {
+        Util.assertMainThread();
+        long startTime = VERBOSE_IS_LOGGABLE ? LogTime.getLogTime() : 0;
+
+        EngineKey key = keyFactory.buildKey(model, signature, width, height, transformations,
+                resourceClass, transcodeClass, options);
+
+        EngineResource<?> active = loadFromActiveResources(key, isMemoryCacheable);
+        if (active != null) {
+            cb.onResourceReady(active, DataSource.MEMORY_CACHE);
+            return null;
+        }
+
+        EngineResource<?> cached = loadFromCache(key, isMemoryCacheable);
+        if (cached != null) {
+            cb.onResourceReady(cached, DataSource.MEMORY_CACHE);
+            if (VERBOSE_IS_LOGGABLE) {
+                logWithTimeAndKey("Loaded resource from cache", startTime, key);
+            }
+            return null;
+        }
+
+        EngineJob<?> current = jobs.get(key, onlyRetrieveFromCache);
+        if (current != null) {
+            current.addCallback(cb);
+            return new LoadStatus(cb, current);
+        }
+
+        EngineJob<R> engineJob =
+                engineJobFactory.build(
+                        key,
+                        isMemoryCacheable,
+                        useUnlimitedSourceExecutorPool,
+                        useAnimationPool,
+                        onlyRetrieveFromCache);
+
+        DecodeJob<R> decodeJob =
+                decodeJobFactory.build(
+                        glideContext,
+                        model,
+                        key,
+                        signature,
+                        width,
+                        height,
+                        resourceClass,
+                        transcodeClass,
+                        priority,
+                        diskCacheStrategy,
+                        transformations,
+                        isTransformationRequired,
+                        isScaleOnlyOrNoTransform,
+                        onlyRetrieveFromCache,
+                        options,
+                        engineJob);
+
+        jobs.put(key, engineJob);
+
+        engineJob.addCallback(cb);
+        engineJob.start(decodeJob);
+
+        return new LoadStatus(cb, engineJob);
+    }
+
+EngineJob 是一个普通的类，DecodeJob 是一个 Runnable，当调用了 EngineJob 的 start() 方法之后会将 DecodeJob 放进线程池当中进行执行。
+
+    public void start(DecodeJob<R> decodeJob) {
+        this.decodeJob = decodeJob;
+        GlideExecutor executor = decodeJob.willDecodeFromCache()
+                ? diskCacheExecutor
+                : getActiveSourceExecutor();
+        executor.execute(decodeJob);
+    }
+
+所以，如果想要找到加载资源和解码的逻辑，就应该查看 DecodeJob 的 run() 方法：
+
+    public void run() {
+        GlideTrace.beginSectionFormat("DecodeJob#run(model=%s)", model);
+        DataFetcher<?> localFetcher = currentFetcher;
+        try {
+            if (isCancelled) {
+                notifyFailed();
+                return;
+            }
+            runWrapped();
+        } catch (Throwable t) {
+            if (stage != Stage.ENCODE) {
+                throwables.add(t);
+                notifyFailed();
+            }
+            if (!isCancelled) {
+                throw t;
+            }
+        } finally {
+            if (localFetcher != null) {
+                localFetcher.cleanup();
+            }
+            GlideTrace.endSection();
+        }
+    }
+
+    private void decodeFromRetrievedData() {
+        Resource<R> resource = null;
+        try {
+            resource = decodeFromData(currentFetcher, currentData, currentDataSource);
+        } catch (GlideException e) {
+            e.setLoggingDetails(currentAttemptingKey, currentDataSource);
+            throwables.add(e);
+        }
+        if (resource != null) {
+            notifyEncodeAndRelease(resource, currentDataSource);
+        } else {
+            runGenerators();
+        }
+    }
+
+    private <Data> Resource<R> decodeFromData(DataFetcher<?> fetcher, Data data, DataSource dataSource) throws GlideException {
+        try {
+            if (data == null) {
+                return null;
+            }
+            Resource<R> result = decodeFromFetcher(data, dataSource);
+            return result;
+        } finally {
+            fetcher.cleanup();
+        }
+    }
+
+    private <Data> Resource<R> decodeFromFetcher(Data data, DataSource dataSource) throws GlideException {
+        LoadPath<Data, ?, R> path = decodeHelper.getLoadPath((Class<Data>) data.getClass());
+        return runLoadPath(data, dataSource, path);
+    }
+
+最终从网络当中加载数据的逻辑 HttpUrlFetcher
+
+    private InputStream loadDataWithRedirects(URL url, int redirects, URL lastUrl, Map<String, String> headers) throws IOException {
+        if (redirects >= MAXIMUM_REDIRECTS) {
+            throw new HttpException("Too many (> " + MAXIMUM_REDIRECTS + ") redirects!");
+        } else {
+            try {
+                if (lastUrl != null && url.toURI().equals(lastUrl.toURI())) {
+                    throw new HttpException("In re-direct loop");
+                }
+            } catch (URISyntaxException e) {
+                // Do nothing, this is best effort.
+            }
+        }
+
+        urlConnection = connectionFactory.build(url);
+        for (Map.Entry<String, String> headerEntry : headers.entrySet()) {
+            urlConnection.addRequestProperty(headerEntry.getKey(), headerEntry.getValue());
+        }
+        urlConnection.setConnectTimeout(timeout);
+        urlConnection.setReadTimeout(timeout);
+        urlConnection.setUseCaches(false);
+        urlConnection.setDoInput(true);
+
+        urlConnection.setInstanceFollowRedirects(false);
+
+        urlConnection.connect();
+        stream = urlConnection.getInputStream();
+        if (isCancelled) {
+            return null;
+        }
+        final int statusCode = urlConnection.getResponseCode();
+        if (isHttpOk(statusCode)) {
+            return getStreamForSuccessfulRequest(urlConnection);
+        } else if (isHttpRedirect(statusCode)) {
+            String redirectUrlString = urlConnection.getHeaderField("Location");
+            if (TextUtils.isEmpty(redirectUrlString)) {
+                throw new HttpException("Received empty or null redirect url");
+            }
+            URL redirectUrl = new URL(url, redirectUrlString);
+            cleanup();
+            return loadDataWithRedirects(redirectUrl, redirects + 1, url, headers);
+        } else if (statusCode == INVALID_STATUS_CODE) {
+            throw new HttpException(statusCode);
+        } else {
+            throw new HttpException(urlConnection.getResponseMessage(), statusCode);
+        }
+    }
 
 
+Q：逻辑，找分叉：按照 with() 的参数判断算是一个分叉，按照各种数据源选择不同的 Fetcher 是另一个分叉……按照这种方式把发生分歧的地方找出来！！
 
 
