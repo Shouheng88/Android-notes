@@ -518,6 +518,7 @@ EngineJob 是一个普通的类，DecodeJob 是一个 Runnable，当调用了 En
                 notifyFailed();
                 return;
             }
+            // 主要是 runWrapped()
             runWrapped();
         } catch (Throwable t) {
             if (stage != Stage.ENCODE) {
@@ -535,39 +536,94 @@ EngineJob 是一个普通的类，DecodeJob 是一个 Runnable，当调用了 En
         }
     }
 
-    private void decodeFromRetrievedData() {
-        Resource<R> resource = null;
-        try {
-            resource = decodeFromData(currentFetcher, currentData, currentDataSource);
-        } catch (GlideException e) {
-            e.setLoggingDetails(currentAttemptingKey, currentDataSource);
-            throwables.add(e);
-        }
-        if (resource != null) {
-            notifyEncodeAndRelease(resource, currentDataSource);
-        } else {
-            runGenerators();
+下面的方法类似于状态模式，会根据 runReason 执行不同的方法，
+
+    private void runWrapped() {
+        switch (runReason) {
+            case INITIALIZE:
+                stage = getNextStage(Stage.INITIALIZE);
+                currentGenerator = getNextGenerator();
+                runGenerators();
+                break;
+            case SWITCH_TO_SOURCE_SERVICE:
+                runGenerators();
+                break;
+            case DECODE_DATA:
+                decodeFromRetrievedData();
+                break;
+            default:
+                throw new IllegalStateException("Unrecognized run reason: " + runReason);
         }
     }
 
-    private <Data> Resource<R> decodeFromData(DataFetcher<?> fetcher, Data data, DataSource dataSource) throws GlideException {
-        try {
-            if (data == null) {
+getNextGenerator() 方法会返回 DataFetcherGenerator 对象：
+
+    private DataFetcherGenerator getNextGenerator() {
+        switch (stage) {
+            case RESOURCE_CACHE:
+                return new ResourceCacheGenerator(decodeHelper, this);
+            case DATA_CACHE:
+                return new DataCacheGenerator(decodeHelper, this);
+            case SOURCE:
+                return new SourceGenerator(decodeHelper, this);
+            case FINISHED:
                 return null;
-            }
-            Resource<R> result = decodeFromFetcher(data, dataSource);
-            return result;
-        } finally {
-            fetcher.cleanup();
+            default:
+                throw new IllegalStateException("Unrecognized stage: " + stage);
         }
     }
 
-    private <Data> Resource<R> decodeFromFetcher(Data data, DataSource dataSource) throws GlideException {
-        LoadPath<Data, ?, R> path = decodeHelper.getLoadPath((Class<Data>) data.getClass());
-        return runLoadPath(data, dataSource, path);
+然后在 runGenerators() 方法中调用 DataFetcherGenerator 的 startNext() 方法：
+
+    public boolean startNext() {
+        if (dataToCache != null) {
+            Object data = dataToCache;
+            dataToCache = null;
+            cacheData(data);
+        }
+
+        if (sourceCacheGenerator != null && sourceCacheGenerator.startNext()) {
+            return true;
+        }
+        sourceCacheGenerator = null;
+
+        loadData = null;
+        boolean started = false;
+        while (!started && hasNextModelLoader()) {
+            loadData = helper.getLoadData().get(loadDataListIndex++);
+            if (loadData != null
+                    && (helper.getDiskCacheStrategy().isDataCacheable(loadData.fetcher.getDataSource())
+                    || helper.hasLoadPath(loadData.fetcher.getDataClass()))) {
+                started = true;
+                loadData.fetcher.loadData(helper.getPriority(), this);
+            }
+        }
+        return started;
     }
 
-最终从网络当中加载数据的逻辑 HttpUrlFetcher
+这里调用了一个 getLoadData() 方法，它的定义如下，它会从我们之前注册的 ModelLoader 中取出对应的 ModelLoader，这样就会找到 HttpGlideUrlLoader：
+
+    List<LoadData<?>> getLoadData() {
+        if (!isLoadDataSet) {
+            isLoadDataSet = true;
+            loadData.clear();
+            List<ModelLoader<Object, ?>> modelLoaders = glideContext.getRegistry().getModelLoaders(model);
+            // noinspection ForLoopReplaceableByForEach to improve perf
+            for (int i = 0, size = modelLoaders.size(); i < size; i++) {
+                ModelLoader<Object, ?> modelLoader = modelLoaders.get(i);
+                LoadData<?> current =
+                        modelLoader.buildLoadData(model, width, height, options);
+                if (current != null) {
+                    loadData.add(current);
+                }
+            }
+        }
+        return loadData;
+    }
+
+然后会在获取 fetcher 的时候得到 HttpUrlFetcher，
+
+所以，最终从网络当中加载数据的逻辑 HttpUrlFetcher：
 
     private InputStream loadDataWithRedirects(URL url, int redirects, URL lastUrl, Map<String, String> headers) throws IOException {
         if (redirects >= MAXIMUM_REDIRECTS) {
@@ -618,5 +674,45 @@ EngineJob 是一个普通的类，DecodeJob 是一个 Runnable，当调用了 En
 
 
 Q：逻辑，找分叉：按照 with() 的参数判断算是一个分叉，按照各种数据源选择不同的 Fetcher 是另一个分叉……按照这种方式把发生分歧的地方找出来！！
+
+
+
+在 Glide 构造方法中会将图片资源的类型与对应的Fetcher 做映射：
+
+   .append(GlideUrl.class, InputStream.class, new HttpGlideUrlLoader.Factory())
+
+HttpGlideUrlLoader.Factory 的 build 方法会返回 HttpGlideUrlLoader
+
+    public ModelLoader<GlideUrl, InputStream> build(MultiModelLoaderFactory multiFactory) {
+        return new HttpGlideUrlLoader(modelCache);
+    }
+
+HttpGlideUrlLoader 的 buildLoadData() 方法中会实例化要给 HttpUrlFetcher
+
+    public LoadData<InputStream> buildLoadData(GlideUrl model, int width, int height, Options options) {
+        GlideUrl url = model;
+        if (modelCache != null) {
+            url = modelCache.get(model, 0, 0);
+            if (url == null) {
+                modelCache.put(model, 0, 0, model);
+                url = model;
+            }
+        }
+        int timeout = options.get(TIMEOUT);
+        return new LoadData<>(url, new HttpUrlFetcher(url, timeout));
+    }
+
+    public synchronized <T> Encoder<T> getEncoder(@NonNull Class<T> dataClass) {
+        for (Entry<?> entry : encoders) {
+            if (entry.handles(dataClass)) {
+                return (Encoder<T>) entry.encoder;
+            }
+        }
+        return null;
+    }
+
+
+
+
 
 
