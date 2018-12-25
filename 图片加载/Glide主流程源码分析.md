@@ -713,6 +713,492 @@ HttpGlideUrlLoader 的 buildLoadData() 方法中会实例化要给 HttpUrlFetche
 
 
 
+## 拿到图片的输入流之后的回调
+
+##### SourceGenerator#onDataReady()
+
+  @Override
+  public void onDataReady(Object data) {
+    DiskCacheStrategy diskCacheStrategy = helper.getDiskCacheStrategy();
+    if (data != null && diskCacheStrategy.isDataCacheable(loadData.fetcher.getDataSource())) {
+      dataToCache = data;
+      cb.reschedule();
+    } else {
+      cb.onDataFetcherReady(loadData.sourceKey, data, loadData.fetcher,
+          loadData.fetcher.getDataSource(), originalKey);
+    }
+  }
+
+##### DecodeJob#onDataFetcherReady()
+
+  public void onDataFetcherReady(Key sourceKey, Object data, DataFetcher<?> fetcher, DataSource dataSource, Key attemptedKey) {
+    this.currentSourceKey = sourceKey;
+    this.currentData = data;
+    this.currentFetcher = fetcher;
+    this.currentDataSource = dataSource;
+    this.currentAttemptingKey = attemptedKey;
+    if (Thread.currentThread() != currentThread) {
+      runReason = RunReason.DECODE_DATA;
+      callback.reschedule(this);
+    } else {
+      GlideTrace.beginSection("DecodeJob.decodeFromRetrievedData");
+      try {
+        decodeFromRetrievedData();
+      } finally {
+        GlideTrace.endSection();
+      }
+    }
+  }
+
+##### DecodeJob#decodeFromRetrievedData()
+
+  private void decodeFromRetrievedData() {
+    Resource<R> resource = null;
+    try {
+      resource = decodeFromData(currentFetcher, currentData, currentDataSource);
+    } catch (GlideException e) {
+      e.setLoggingDetails(currentAttemptingKey, currentDataSource);
+      throwables.add(e);
+    }
+    if (resource != null) {
+      notifyEncodeAndRelease(resource, currentDataSource);
+    } else {
+      runGenerators();
+    }
+  }
+
+##### DecodeJob#decodeFromData()
+
+  private <Data> Resource<R> decodeFromData(DataFetcher<?> fetcher, Data data,
+      DataSource dataSource) throws GlideException {
+    try {
+      if (data == null) {
+        return null;
+      }
+      Resource<R> result = decodeFromFetcher(data, dataSource);
+      return result;
+    } finally {
+      fetcher.cleanup();
+    }
+  }
+
+##### DecodeJob#decodeFromFetcher()
+
+  private <Data> Resource<R> decodeFromFetcher(Data data, DataSource dataSource)
+      throws GlideException {
+    LoadPath<Data, ?, R> path = decodeHelper.getLoadPath((Class<Data>) data.getClass());
+    return runLoadPath(data, dataSource, path);
+  }
+
+##### DecodeJob#runLoadPath()
+
+  private <Data, ResourceType> Resource<R> runLoadPath(Data data, DataSource dataSource,
+      LoadPath<Data, ResourceType, R> path) throws GlideException {
+    Options options = getOptionsWithHardwareConfig(dataSource);
+    DataRewinder<Data> rewinder = glideContext.getRegistry().getRewinder(data);
+    try {
+      return path.load(rewinder, options, width, height, new DecodeCallback<ResourceType>(dataSource));
+    } finally {
+      rewinder.cleanup();
+    }
+  }
+
+在这里我们传入了一个实例化的 DecodeCallback，它的作用是？
+
+##### LoadPath#load()
+
+  public Resource<Transcode> load(DataRewinder<Data> rewinder, @NonNull Options options, int width,
+      int height, DecodePath.DecodeCallback<ResourceType> decodeCallback) throws GlideException {
+    List<Throwable> throwables = Preconditions.checkNotNull(listPool.acquire());
+    try {
+      return loadWithExceptionList(rewinder, options, width, height, decodeCallback, throwables);
+    } finally {
+      listPool.release(throwables);
+    }
+  }
+
+##### LoadPath#loadWithExceptionList()
+
+  private Resource<Transcode> loadWithExceptionList(DataRewinder<Data> rewinder, Options options, 
+      int width, int height, DecodePath.DecodeCallback<ResourceType> decodeCallback,
+      List<Throwable> exceptions) throws GlideException {
+    Resource<Transcode> result = null;
+    for (int i = 0, size = decodePaths.size(); i < size; i++) {
+      DecodePath<Data, ResourceType, Transcode> path = decodePaths.get(i);
+      try {
+        result = path.decode(rewinder, width, height, options, decodeCallback);
+      } catch (GlideException e) {
+        exceptions.add(e);
+      }
+      if (result != null) {
+        break;
+      }
+    }
+    // ... 
+    return result;
+  }
+
+##### DecodePath#decode()
+
+  public Resource<Transcode> decode(DataRewinder<DataType> rewinder, int width, int height,
+      Options options, DecodeCallback<ResourceType> callback) throws GlideException {
+    Resource<ResourceType> decoded = decodeResource(rewinder, width, height, options);
+    Resource<ResourceType> transformed = callback.onResourceDecoded(decoded);
+    return transcoder.transcode(transformed, options);
+  }
+
+##### DecodePath#decodeResource()
+
+  private Resource<ResourceType> decodeResource(DataRewinder<DataType> rewinder, int width,
+      int height, @NonNull Options options) throws GlideException {
+    List<Throwable> exceptions = Preconditions.checkNotNull(listPool.acquire());
+    try {
+      return decodeResourceWithList(rewinder, width, height, options, exceptions);
+    } finally {
+      listPool.release(exceptions);
+    }
+  }
+
+##### DecodePath#decodeResourceWithList()
+
+  private Resource<ResourceType> decodeResourceWithList(DataRewinder<DataType> rewinder, int width,
+      int height, @NonNull Options options, List<Throwable> exceptions) throws GlideException {
+    Resource<ResourceType> result = null;
+    for (int i = 0, size = decoders.size(); i < size; i++) {
+      ResourceDecoder<DataType, ResourceType> decoder = decoders.get(i);
+      try {
+        DataType data = rewinder.rewindAndGet();
+        if (decoder.handles(data, options)) {
+          data = rewinder.rewindAndGet();
+          result = decoder.decode(data, width, height, options);
+        }
+      } catch (IOException | RuntimeException | OutOfMemoryError e) {
+        exceptions.add(e);
+      }
+
+      if (result != null) {
+        break;
+      }
+    }
+
+    return result;
+  }
+
+##### StreamBitmapDecoder#decode()
+
+  public Resource<Bitmap> decode(InputStream source, int width, int height, Options options) throws IOException {
+    final RecyclableBufferedInputStream bufferedStream;
+    final boolean ownsBufferedStream;
+    if (source instanceof RecyclableBufferedInputStream) {
+      bufferedStream = (RecyclableBufferedInputStream) source;
+      ownsBufferedStream = false;
+    } else {
+      bufferedStream = new RecyclableBufferedInputStream(source, byteArrayPool);
+      ownsBufferedStream = true;
+    }
+
+    ExceptionCatchingInputStream exceptionStream = ExceptionCatchingInputStream.obtain(bufferedStream);
+
+    MarkEnforcingInputStream invalidatingStream = new MarkEnforcingInputStream(exceptionStream);
+    UntrustedCallbacks callbacks = new UntrustedCallbacks(bufferedStream, exceptionStream);
+    try {
+      return downsampler.decode(invalidatingStream, width, height, options, callbacks);
+    } finally {
+      exceptionStream.release();
+      if (ownsBufferedStream) {
+        bufferedStream.release();
+      }
+    }
+  }
+
+##### Downsampler#decode()
+
+  public Resource<Bitmap> decode(InputStream is, int requestedWidth, int requestedHeight,
+      Options options, DecodeCallbacks callbacks) throws IOException {
+    byte[] bytesForOptions = byteArrayPool.get(ArrayPool.STANDARD_BUFFER_SIZE_BYTES, byte[].class);
+    BitmapFactory.Options bitmapFactoryOptions = getDefaultOptions();
+    bitmapFactoryOptions.inTempStorage = bytesForOptions;
+
+    DecodeFormat decodeFormat = options.get(DECODE_FORMAT);
+    DownsampleStrategy downsampleStrategy = options.get(DownsampleStrategy.OPTION);
+    boolean fixBitmapToRequestedDimensions = options.get(FIX_BITMAP_SIZE_TO_REQUESTED_DIMENSIONS);
+    boolean isHardwareConfigAllowed =
+      options.get(ALLOW_HARDWARE_CONFIG) != null && options.get(ALLOW_HARDWARE_CONFIG);
+
+    try {
+      Bitmap result = decodeFromWrappedStreams(is, bitmapFactoryOptions,
+          downsampleStrategy, decodeFormat, isHardwareConfigAllowed, requestedWidth,
+          requestedHeight, fixBitmapToRequestedDimensions, callbacks);
+      return BitmapResource.obtain(result, bitmapPool);
+    } finally {
+      releaseOptions(bitmapFactoryOptions);
+      byteArrayPool.put(bytesForOptions);
+    }
+  }
+
+##### Downsampler#decodeFromWrappedStreams()
+
+  private Bitmap decodeFromWrappedStreams(InputStream is,
+      BitmapFactory.Options options, DownsampleStrategy downsampleStrategy,
+      DecodeFormat decodeFormat, boolean isHardwareConfigAllowed, int requestedWidth,
+      int requestedHeight, boolean fixBitmapToRequestedDimensions,
+      DecodeCallbacks callbacks) throws IOException {
+    long startTime = LogTime.getLogTime();
+
+    int[] sourceDimensions = getDimensions(is, options, callbacks, bitmapPool);
+    int sourceWidth = sourceDimensions[0];
+    int sourceHeight = sourceDimensions[1];
+    String sourceMimeType = options.outMimeType;
+
+    if (sourceWidth == -1 || sourceHeight == -1) {
+      isHardwareConfigAllowed = false;
+    }
+
+    int orientation = ImageHeaderParserUtils.getOrientation(parsers, is, byteArrayPool);
+    int degreesToRotate = TransformationUtils.getExifOrientationDegrees(orientation);
+    boolean isExifOrientationRequired = TransformationUtils.isExifOrientationRequired(orientation);
+
+    int targetWidth = requestedWidth == Target.SIZE_ORIGINAL ? sourceWidth : requestedWidth;
+    int targetHeight = requestedHeight == Target.SIZE_ORIGINAL ? sourceHeight : requestedHeight;
+
+    ImageType imageType = ImageHeaderParserUtils.getType(parsers, is, byteArrayPool);
+
+    calculateScaling(/*各种参数*/);
+    calculateConfig(/*各种参数*/);
+
+    boolean isKitKatOrGreater = Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT;
+    if ((options.inSampleSize == 1 || isKitKatOrGreater) && shouldUsePool(imageType)) {
+      int expectedWidth;
+      int expectedHeight;
+      if (sourceWidth >= 0 && sourceHeight >= 0 && fixBitmapToRequestedDimensions && isKitKatOrGreater) {
+        expectedWidth = targetWidth;
+        expectedHeight = targetHeight;
+      } else {
+        float densityMultiplier = isScaling(options) ? (float) options.inTargetDensity / options.inDensity : 1f;
+        int sampleSize = options.inSampleSize;
+        int downsampledWidth = (int) Math.ceil(sourceWidth / (float) sampleSize);
+        int downsampledHeight = (int) Math.ceil(sourceHeight / (float) sampleSize);
+        expectedWidth = Math.round(downsampledWidth * densityMultiplier);
+        expectedHeight = Math.round(downsampledHeight * densityMultiplier);
+      }
+      if (expectedWidth > 0 && expectedHeight > 0) {
+        setInBitmap(options, bitmapPool, expectedWidth, expectedHeight);
+      }
+    }
+    Bitmap downsampled = decodeStream(is, options, callbacks, bitmapPool);
+    callbacks.onDecodeComplete(bitmapPool, downsampled);
+
+    Bitmap rotated = null;
+    if (downsampled != null) {
+      downsampled.setDensity(displayMetrics.densityDpi);
+      rotated = TransformationUtils.rotateImageExif(bitmapPool, downsampled, orientation);
+      if (!downsampled.equals(rotated)) {
+        bitmapPool.put(downsampled);
+      }
+    }
+
+    return rotated;
+  }
+
+##### Downsampler#decodeStream()
+
+  private static Bitmap decodeStream(InputStream is, BitmapFactory.Options options,
+      DecodeCallbacks callbacks, BitmapPool bitmapPool) throws IOException {
+    if (options.inJustDecodeBounds) {
+      is.mark(MARK_POSITION);
+    } else {
+      callbacks.onObtainBounds();
+    }
+    int sourceWidth = options.outWidth;
+    int sourceHeight = options.outHeight;
+    String outMimeType = options.outMimeType;
+    final Bitmap result;
+    TransformationUtils.getBitmapDrawableLock().lock();
+    try {
+      result = BitmapFactory.decodeStream(is, null, options);
+    } catch (IllegalArgumentException e) {
+      IOException bitmapAssertionException =
+          newIoExceptionForInBitmapAssertion(e, sourceWidth, sourceHeight, outMimeType, options);
+      if (options.inBitmap != null) {
+        try {
+          is.reset();
+          bitmapPool.put(options.inBitmap);
+          options.inBitmap = null;
+          return decodeStream(is, options, callbacks, bitmapPool);
+        } catch (IOException resetException) {
+          throw bitmapAssertionException;
+        }
+      }
+      throw bitmapAssertionException;
+    } finally {
+      TransformationUtils.getBitmapDrawableLock().unlock();
+    }
+
+    if (options.inJustDecodeBounds) {
+      is.reset();
+    }
+    return result;
+  }
+
+
+
+### 得到了图片之后的逻辑：
+
+当拿到了 Bitmap 之后又会一路 return 回到之前的位置：我们从下面的代码开始
+
+##### DecodePath#decode()
+
+  public Resource<Transcode> decode(DataRewinder<DataType> rewinder, int width, int height,
+      Options options, DecodeCallback<ResourceType> callback) throws GlideException {
+    Resource<ResourceType> decoded = decodeResource(rewinder, width, height, options);
+    Resource<ResourceType> transformed = callback.onResourceDecoded(decoded);
+    return transcoder.transcode(transformed, options);
+  }
+
+transcoder 是 ResourceTranscoder 的实现，用来将 Bitmap 转换成指定的类型。
+
+##### DecodeJob 的内部类 DecodeCallback
+
+   这里会调用 callback 进行回调，我们上面提到过它，
+
+  private final class DecodeCallback<Z> implements DecodePath.DecodeCallback<Z> {
+
+    private final DataSource dataSource;
+
+    @Synthetic
+    DecodeCallback(DataSource dataSource) {
+      this.dataSource = dataSource;
+    }
+
+    @NonNull
+    @Override
+    public Resource<Z> onResourceDecoded(@NonNull Resource<Z> decoded) {
+      return DecodeJob.this.onResourceDecoded(dataSource, decoded);
+    }
+  }
+
+##### DecodeJob#onResourceDecoded()
+
+  <Z> Resource<Z> onResourceDecoded(DataSource dataSource, Resource<Z> decoded) {
+    Class<Z> resourceSubClass = (Class<Z>) decoded.get().getClass();
+    Transformation<Z> appliedTransformation = null;
+    Resource<Z> transformed = decoded;
+    if (dataSource != DataSource.RESOURCE_DISK_CACHE) {
+      appliedTransformation = decodeHelper.getTransformation(resourceSubClass);
+      transformed = appliedTransformation.transform(glideContext, decoded, width, height);
+    }
+    if (!decoded.equals(transformed)) {
+      decoded.recycle();
+    }
+
+    final EncodeStrategy encodeStrategy;
+    final ResourceEncoder<Z> encoder;
+    if (decodeHelper.isResourceEncoderAvailable(transformed)) {
+      encoder = decodeHelper.getResultEncoder(transformed);
+      encodeStrategy = encoder.getEncodeStrategy(options);
+    } else {
+      encoder = null;
+      encodeStrategy = EncodeStrategy.NONE;
+    }
+
+    Resource<Z> result = transformed;
+    boolean isFromAlternateCacheKey = !decodeHelper.isSourceKey(currentSourceKey);
+    if (diskCacheStrategy.isResourceCacheable(isFromAlternateCacheKey, dataSource, encodeStrategy)) {
+      if (encoder == null) {
+        throw new Registry.NoResultEncoderAvailableException(transformed.get().getClass());
+      }
+      final Key key;
+      switch (encodeStrategy) {
+        case SOURCE:
+          key = new DataCacheKey(currentSourceKey, signature);
+          break;
+        case TRANSFORMED:
+          key = new ResourceCacheKey(
+                  decodeHelper.getArrayPool(),
+                  currentSourceKey,
+                  signature,
+                  width,
+                  height,
+                  appliedTransformation,
+                  resourceSubClass,
+                  options);
+          break;
+        default:
+          throw new IllegalArgumentException("Unknown strategy: " + encodeStrategy);
+      }
+
+      LockedResource<Z> lockedResult = LockedResource.obtain(transformed);
+      deferredEncodeManager.init(key, encoder, lockedResult);
+      result = lockedResult;
+    }
+    return result;
+  }
+
+
+### 转码之后
+
+会一路回到下面的方法：
+
+  private void notifyEncodeAndRelease(Resource<R> resource, DataSource dataSource) {
+    if (resource instanceof Initializable) {
+      ((Initializable) resource).initialize();
+    }
+
+    Resource<R> result = resource;
+    LockedResource<R> lockedResource = null;
+    if (deferredEncodeManager.hasResourceToEncode()) {
+      lockedResource = LockedResource.obtain(resource);
+      result = lockedResource;
+    }
+
+    notifyComplete(result, dataSource);
+
+    stage = Stage.ENCODE;
+    try {
+      if (deferredEncodeManager.hasResourceToEncode()) {
+        deferredEncodeManager.encode(diskCacheProvider, options);
+      }
+    } finally {
+      if (lockedResource != null) {
+        lockedResource.unlock();
+      }
+    }
+    onEncodeComplete();
+  }
+
+##### EngineJob#handleResultOnMainThread()
+
+然后从 notifyComplete() 进入到发送消息到主线程：
+
+  void handleResultOnMainThread() {
+    stateVerifier.throwIfRecycled();
+    if (isCancelled) {
+      resource.recycle();
+      release(false /*isRemovedFromQueue*/);
+      return;
+    } else if (cbs.isEmpty()) {
+      throw new IllegalStateException("Received a resource without any callbacks to notify");
+    } else if (hasResource) {
+      throw new IllegalStateException("Already have resource");
+    }
+    engineResource = engineResourceFactory.build(resource, isCacheable);
+    hasResource = true;
+
+    engineResource.acquire();
+    listener.onEngineJobComplete(this, key, engineResource);
+
+    for (int i = 0, size = cbs.size(); i < size; i++) {
+      ResourceCallback cb = cbs.get(i);
+      if (!isInIgnoredCallbacks(cb)) {
+        engineResource.acquire();
+        cb.onResourceReady(engineResource, dataSource);
+      }
+    }
+    engineResource.release();
+
+    release(false /*isRemovedFromQueue*/);
+  }
+
 
 
 
