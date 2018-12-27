@@ -86,15 +86,21 @@
 - [ ] 动态布局
 - [ ] 热修复,插件化
 - [ ] 性能优化,怎么保证应用启动不卡顿
-- [ ] 怎么去除重复代码
-- [ ] SP是进程同步的吗?有什么方法做到同步
-- [ ] 介绍下SurfView
+- [x] SP是进程同步的吗?有什么方法做到同步
+
+    非进程同步，使用 MODE_MULTI_PROCESS 可以设置进程同步的，但是不可靠，原理是将数据加载到内存中，写入之前强制读取，当 commit 高频的时候仍然会造成数据不同步。    
+    使用 ContentProvider 来模拟 SharedPreferences. SP 的增删对应数据库的增删。
+
+- [ ] 介绍下 SurfView
 - [ ] 图片加载原理
 - [ ] 模块化实现（好处，原因）
 - [ ] 视频加密传输
 - [ ] 统计启动时长,标准
 - [ ] 如何保持应用的稳定性
 - [ ] BroadcastReceiver，LocalBroadcastReceiver 区别
+
+
+
 - [ ] Bundle 机制
 - [ ] Handler 机制
 - [ ] Binder相关？
@@ -117,25 +123,31 @@
 - [ ] 图片加载库相关，bitmap如何处理大图，如一张30M的大图，如何预防OOM
 - [ ] 进程保活
 - [ ] 广播（动态注册和静态注册区别，有序广播和标准广播）
-- [ ] listview图片加载错乱的原理和解决方案
-- [ ] service生命周期
-- [ ] handler实现机制（很多细节需要关注：如线程如何建立和退出消息循环等等）
+- [ ] listview 图片加载错乱的原理和解决方案
+- [ ] service 生命周期
+- [ ] handler 实现机制（很多细节需要关注：如线程如何建立和退出消息循环等等）
 - [ ] 数据库数据迁移问题
 - [ ] 是否熟悉Android jni开发，jni如何调用java层代码
 - [ ] 进程间通信的方式
-- [ ] 计算一个view的嵌套层级
+- [ ] 计算一个 view 的嵌套层级
 - [ ] 项目组件化的理解
-- [ ] Android系统为什么会设计ContentProvider，进程共享和线程安全问题
-- [ ] Android相关优化（如内存优化、网络优化、布局优化、电量优化、业务优化） 
-- [ ] EventBus实现原理
+- [ ] Android 系统为什么会设计ContentProvider，进程共享和线程安全问题
+- [ ] Android 相关优化（如内存优化、网络优化、布局优化、电量优化、业务优化） 
+- [ ] EventBus 实现原理
 - [ ] 四大组件
 - [ ] Android中数据存储方式
 - [ ] ActicityThread相关？
 - [ ] Android中进程内存的分配，能不能自己分配定额内存
-- [ ] 序列化，Android为什么引入Parcelable
-- [ ] 有没有尝试简化Parcelable的使用
-- [ ] ViewPager使用细节，如何设置成每次只初始化当前的Fragment，其他的不初始化
-- [ ] ListView重用的是什么
+- [ ] 序列化，Android为什么引入 Parcelable
+- [x] 有没有尝试简化 Parcelable 的使用
+
+    通常有两种解决方案，一种是反射，但是性能低；一种是注解，动态生成代码。
+
+- [x] ViewPager 使用细节，如何设置成每次只初始化当前的 Fragment，其他的不初始化
+
+    不能使用 ViewPager.setOffscreenPageLimit(0)，其最小值为1. 
+
+- [ ] ListView 重用的是什么
 - [ ] 进程间通信的机制
 - [ ] AIDL机制
 - [ ] 应用安装过程
@@ -163,7 +175,10 @@
 - [ ] Application 和 Activity 的 context 对象的区别
 - [ ] 序列化的作用，以及 Android 两种序列化的区别。
 - [ ] ANR怎么分析解决
-- [ ] LinearLayout、RelativeLayout、FrameLayout的特性、使用场景
+- [x] LinearLayout、RelativeLayout、FrameLayout 的特性、使用场景
+
+    ...
+
 - [ ] 如何实现Fragment的滑动
 - [ ] AndroidManifest的作用与理解
 - [ ] Jni 用过么？
@@ -174,10 +189,13 @@
 - [ ] Activity与Fragment之间生命周期比较
 - [ ] 广播的使用场景
 - [ ] Bitmap 使用时候注意什么？
-- [ ] Oom 是否可以try catch ？
+- [ ] Oom 是否可以 try catch ？
+
+内存优化    
+
+
 - [ ] 内存泄露如何产生？
 - [ ] 适配器模式，装饰者模式，外观模式的异同？
-- [ ] ANR 如何产生？
 - [ ] 如何保证线程安全？
 - [ ] 事件传递机制的介绍
 - [ ] handler发消息给子线程，looper怎么启动
@@ -194,7 +212,10 @@
 - [ ] Android进程分类
 - [ ] 前台切换到后台，然后再回到前台，Activity生命周期回调方法。弹出Dialog，生命值周期回调方法。
 - [ ] RecycleView的使用，原理，RecycleView优化
-- [ ] ANR的原因
+- [ ] ANR 的原因
+
+
+
 - [ ] Service的开启方式
 - [ ] Activity与Service通信的方式
 - [ ] Activity之间的通信方式

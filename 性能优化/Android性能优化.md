@@ -131,21 +131,23 @@ zero()最慢，每次都要计算mArray的长度，one()相对快得多，two()�
 (2)仅在需要时才加载布局
 某个布局当中的元素不是一起显示出来的，普通情况下只显示部分常用的元素，而那些不常用的元素只有在用户进行特定操作时才会显示出来。
 举例：填信息时不是需要全部填的，有一个添加更多字段的选项，当用户需要添加其他信息的时候，才将另外的元素显示到界面上。用VISIBLE性能表现一般，可以用ViewStub。ViewStub也是View的一种，但是没有大小，没有绘制功能，也不参与布局，资源消耗非常低，可以认为完全不影响性能。
-<ViewStub   
+
+    <ViewStub   
         android:id="@+id/view_stub"  
         android:layout="@layout/profile_extra"  
         android:layout_width="match_parent"  
         android:layout_height="wrap_content"  />
-  
-public void onMoreClick() {  
-    ViewStub viewStub = (ViewStub) findViewById(R.id.view_stub);  
-    if (viewStub != null) {  
-        View inflatedView = viewStub.inflate();  
-        editExtra1 = (EditText) inflatedView.findViewById(R.id.edit_extra1);  
-        editExtra2 = (EditText) inflatedView.findViewById(R.id.edit_extra2);  
-        editExtra3 = (EditText) inflatedView.findViewById(R.id.edit_extra3);  
-    }  
-}  
+
+    public void onMoreClick() {  
+        ViewStub viewStub = (ViewStub) findViewById(R.id.view_stub);  
+        if (viewStub != null) {  
+            View inflatedView = viewStub.inflate();  
+            editExtra1 = (EditText) inflatedView.findViewById(R.id.edit_extra1);  
+            editExtra2 = (EditText) inflatedView.findViewById(R.id.edit_extra2);  
+            editExtra3 = (EditText) inflatedView.findViewById(R.id.edit_extra3);  
+        }  
+    }
+
 注意ViewStub所加载的布局是不可以使用标签的，因此这有可能导致加载出来出来的布局存在着多余的嵌套结构。
 
 ### 23.Java代码的优化原则
@@ -191,6 +193,7 @@ ANR就是指Application Not Responding，就是程序长时间没有反应的问
         long sMillis = System.currentTimeMillis();
         // ...代码块
         long eMillis = System.currentTimeMillis();
+
 然后两者相减即可得到程序的运行时间。
 
 2. 内存消耗测试：获取代码块前后的内存，然后相减即可得到这段代码当中的内存消耗。获取当前内存的方式是
@@ -198,12 +201,36 @@ ANR就是指Application Not Responding，就是程序长时间没有反应的问
         long total = Runtime.getRuntime().totalMemory(); // 获取系统中内存总数
         long free = Runtime.getRuntime().freeMemory(); // 获取剩余的内存总数
         long used = total - free; // 使用的内存数
+
 在使用的时候只要在代码块的两端调用Runtime.getRuntime().freeMemory()然后再相减即可得到使用的内存总数。
 
 
+### 合理设置buffer
 
+在读一个文件我们一般会设置一个buffer。即先把文件读到buffer中，然后再读取buffer的数据。所以: 真正对文件的次数 = 文件大小 / buffer大小 。 所以如果你的buffer比较小的话，那么读取文件的次数会非常多。当然在写文件时buffer是一样道理的。
 
+很多同学会喜欢设置1KB的buffer，比如byte buffer[] = new byte[1024]。如果要读取的文件有20KB， 那么根据这个buffer的大小，这个文件要被读取20次才能读完。
 
+最佳实践 -> buffer应该设置多大呢？
+
+java默认的buffer为8KB，最少应该为4KB。那么如何更智能的确定buffer大小呢？
+
+buffer的大小不能大于文件的大小。
+buffer的大小可以根据文件保存所�挂载的目录的block size, 什么意思呢？ 来看一下SQLiteGlobal.java是如何确定buffer大小的 :
+public static int getDefaultPageSize() { 
+    return SystemProperties.getInt("debug.sqlite.pagesize", new StatFs("/data").getBlockSize());
+}
+
+### Bitmap 的解码
+
+在Android4.4以上的系统上，对于Bitmap的解码，decodeStream()的效率要高于decodeFile()和decodeResource(), 而且高的不是一点。所以解码Bitmap要使用decodeStream()，同时传给decodeStream()的文件流是BufferedInputStream
+
+val bis =  BufferedInputStream(FileInputStream(filePath))
+val bitmap = BitmapFactory.decodeStream(bis,null,ops)
+
+### SparseArray 与 ArrayMap
+
+SparseArray 设计用来替换 HashMap，因为当想构建基于数值类型到某个类的映射关系的时候， HashMap 的键值对的键必须是数值类型的包装类，此时，普通的数值类型会被自动装箱，因此性能上会有损失。
 
 
 
