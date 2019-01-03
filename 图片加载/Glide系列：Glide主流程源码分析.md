@@ -1,23 +1,18 @@
-# Glide 主流程源码分析（4.x）
+# Glide 系列-2：主流程源码分析（4.8.0）
 
-Glide 是Android 端的图片加载框架，
+Glide 是 Android 端比较常用的图片加载框架，这里我们就不再介绍它的基础的使用方式。你可以通过查看其官方文档学习其基础使用。这里，我们给出一个 Glide 的最基本的使用示例，并以此来研究这个整个过程发生了什么：
 
-使用的时候需要在代码中加入下面的依赖。一般添加第一个依赖就可以了，如果需要使用 Glide 的注解，那么还要加入第二个来在项目中启用注解处理：
+```java
+Glide.with(fragment).load(myUrl).into(imageView);
+```
 
-    dependencies {
-        compile 'com.github.bumptech.glide:glide:4.8.0'
-        annotationProcessor 'com.github.bumptech.glide:compiler:4.8.0'
-    }
+上面的代码虽然简单，但是在 Glide 的整个执行过程涉及许多相关的类，其流程也比较复杂。为了更清楚地说明这整个过程，我们将 Glide 的图片加载按照调用的时间关系分成了下面几个部分：
 
-然后，一个最基本的使用示例：
-
-    Glide.with(fragment).load(myUrl).into(imageView);
-
-接下来我们来分析这个过程究竟发生了什么。
+/////////////////// TODO 分成几个部分
 
 ### with()
 
-当调用了 `Glide` 的 `with()` 方法的时候会得到一个 `RequestManager` 实例。`with()` 有多个重载方法，我们可以使用 `Activity` 或者 `Fragment` 等来获取 `Glide` 实例，它们最终都会在一个地方被处理。在后面的文章中，我们会分析这方面的内容。
+当调用了 Glide 的 `with()` 方法的时候会得到一个 `RequestManager` 实例。`with()` 有多个重载方法，我们可以使用 `Activity` 或者 `Fragment` 等来获取 `Glide` 实例，它们最终都会在一个地方被处理。在后面的文章中，我们会分析这方面的内容。
 
     public static RequestManager with(Context context) {
         return getRetriever(context).get(context);
@@ -30,6 +25,8 @@ Glide 是Android 端的图片加载框架，
     }
 
 这里调用了 Glide 的 `get()` 方法，它最终会调用下面的方法实例化一个**单例**的 `Glide` 实例。在下面的方法主要用来从 Manifest 和注解中解析出 `GlideModule` 对象。这个方法中需要出入一个 `GlideBuilder` 实例，它是一个构建者，用来构建 Glide 实例。我们会在调用下面的方法的时候直接使用 `new` 关键字创建一个 `GlideBuilder`。
+
+这里主要包含两种操作，一个对从注解生成的类的方法进行调用，然后根据该生成类是否启用了基于 Manifest 的 GlideModule 来决定是否从 Manifest 中解析 GlideModule。接下来就是对两种不同方式得到的 GlideModule 的方法进行调用。所以，从这里我们也可以看出来，注解的 GlideModule 的优先级是高于 Manifest 中的 GlideModule 的，毕竟它可以通过在 `isManifestParsingEnabled()` 方法中返回 `false` 来直接让 Glide 不从 Manifest 中解析 GlideModule。
 
     private static void initializeGlide(@NonNull Context context, @NonNull GlideBuilder builder) {
         Context applicationContext = context.getApplicationContext();
