@@ -6,81 +6,134 @@ Glide 是 Android 端比较常用的图片加载框架，这里我们就不再�
 Glide.with(fragment).load(myUrl).into(imageView);
 ```
 
-上面的代码虽然简单，但是在 Glide 的整个执行过程涉及许多相关的类，其流程也比较复杂。为了更清楚地说明这整个过程，我们将 Glide 的图片加载按照调用的时间关系分成了下面几个部分：
+上面的代码虽然简单，但是整个执行过程涉及许多类，其流程也比较复杂。为了更清楚地说明这整个过程，我们将 Glide 的图片加载按照调用的时间关系分成了下面几个部分：
 
-/////////////////// TODO 分成几个部分
+1. `with()` 方法的执行过程
+2. `load()` 方法的执行过程
+3. `into()` 方法的执行过程
+    1. 阶段1：开启 `DecodeJob` 的过程
+    2. 阶段2：打开网络流的过程
+    3. 阶段3：将输入流转换为 `Drawable` 的过程
+    4. 阶段4：将 `Drawable` 展示到 `ImageView` 的过程
 
-### with()
+即按照上面的示例代码，先分成 `with()`、`load()` 和 `into()` 三个过程，而 `into()` 过程又被细化成四个阶段。
 
-当调用了 Glide 的 `with()` 方法的时候会得到一个 `RequestManager` 实例。`with()` 有多个重载方法，我们可以使用 `Activity` 或者 `Fragment` 等来获取 `Glide` 实例，它们最终都会在一个地方被处理。在后面的文章中，我们会分析这方面的内容。
+下面我们就按照上面划分的过程来分别介绍一下各个过程中都做了哪些操作。
 
-    public static RequestManager with(Context context) {
-        return getRetriever(context).get(context);
+## 1、with() 方法的执行过程
+
+### 1.1 实例化单例的 Glide 的过程
+
+当调用了 Glide 的 `with()` 方法的时候会得到一个 `RequestManager` 实例。`with()` 有多个重载方法，我们可以使用 `Activity` 或者 `Fragment` 等来获取 `Glide` 实例。它们最终都会调用下面这个方法来完成最终的操作：
+
+```java
+public static RequestManager with(Context context) {
+    return getRetriever(context).get(context);
+}
+```
+
+在 `getRetriever()` 方法内部我们会先使用 `Glide` 的 `get()` 方法获取一个单例的 Glide 实例，然后从该 Glide 实例中得到一个 `RequestManagerRetriever`:
+
+```java
+private static RequestManagerRetriever getRetriever(Context context) {
+    return Glide.get(context).getRequestManagerRetriever();
+}
+```
+
+这里调用了 Glide 的 `get()` 方法，它最终会调用 `initializeGlide()` 方法实例化一个**单例**的 `Glide` 实例。在之前的文中我们已经介绍了这个方法。它主要用来从注解和 Manifest 中获取 GlideModule，并根据各 GlideModule 中的方法对 Glide 进行自定义：
+
+[《Glide 系列-1：预热、Glide 的常用配置方式及其原理》](Glide系列：Glide的配置和使用方式.md)
+
+下面的方法中需要传入一个 `GlideBuilder` 实例。很明显这是一种构建者模式的应用，我们可以使用它的方法来实现对 Glide 的个性化配置：
+
+```java
+private static void initializeGlide(Context context, GlideBuilder builder) {
+
+    // ... 各种操作，略
+
+    // 赋值给静态的单例实例
+    Glide.glide = glide;
+}
+```
+
+最终 Glide 实例由 `GlideBuilder` 的 `build()` 方法构建完毕。它会直接调用 Glide 的构造方法来完成 Glide 的创建。在该构造方法中会将各种类型的图片资源及其对应的加载类的映射关系注册到 Glide 中，你可以阅读源码了解这部分内容。
+
+### 1.2 Glide 的生命周期管理
+
+在 `with()` 方法的执行过程还有一个重要的地方是 Glide 的生命周期管理。因为当我们正在进行图片加载的时候，Fragment 或者 Activity 的生命周期可能已经结束了，所以，我们需要对 Glide 的生命周期进行管理。
+
+Glide 对这部分内容的处理也非常巧妙，它使用没有 UI 的 Fragment 来管理 Glide 的生命周期。这也是一种非常常用的生命周期管理方式，比如 `RxPermission` 等框架都使用了这种方式。你可以通过下面的示例来了解它的作用原理：
+
+[示例代码：使用 Fragment 管理 onActivityResult()](https://github.com/Shouheng88/Android-references/tree/master/advanced/src/main/java/me/shouheng/advanced/callback)
+
+在 `with()` 方法中，当我们调用了 `RequestManagerRetriever` 的 `get()` 方法之后，会根据 Context 的类型调用 `get()` 的各个重载方法。
+
+```java
+  public RequestManager get(@NonNull Context context) {
+    if (context == null) {
+      throw new IllegalArgumentException("You cannot start a load on a null Context");
+    } else if (Util.isOnMainThread() && !(context instanceof Application)) {
+      if (context instanceof FragmentActivity) {
+        return get((FragmentActivity) context);
+      } else if (context instanceof Activity) {
+        return get((Activity) context);
+      } else if (context instanceof ContextWrapper) {
+        return get(((ContextWrapper) context).getBaseContext());
+      }
     }
 
-在 `with()` 方法内部我们会先使用 `Glide` 的 `get()` 方法获取一个 Glide 实例，并从其中得到一个 `RequestManagerRetriever`，我们的 `RequestManager` 就是从 `RequestManagerRetriever` 中得到的：
+    return getApplicationManager(context);
+  }
+```
 
-    private static RequestManagerRetriever getRetriever(@Nullable Context context) {
-        return Glide.get(context).getRequestManagerRetriever();
+我们以 Activity 为例。如下面的方法所示，当当前位于后台线程的时候，会使用 Application 的 Context 获取 `RequestManager`，否则会使用无 UI 的 Fragment 进行管理：
+
+```java
+  public RequestManager get(@NonNull Activity activity) {
+    if (Util.isOnBackgroundThread()) {
+      return get(activity.getApplicationContext());
+    } else {
+      assertNotDestroyed(activity);
+      android.app.FragmentManager fm = activity.getFragmentManager();
+      return fragmentGet(
+          activity, fm, /*parentHint=*/ null, isActivityVisible(activity));
     }
+  }
+```
 
-这里调用了 Glide 的 `get()` 方法，它最终会调用下面的方法实例化一个**单例**的 `Glide` 实例。在下面的方法主要用来从 Manifest 和注解中解析出 `GlideModule` 对象。这个方法中需要出入一个 `GlideBuilder` 实例，它是一个构建者，用来构建 Glide 实例。我们会在调用下面的方法的时候直接使用 `new` 关键字创建一个 `GlideBuilder`。
+然后就调用到了 `fragmentGet()` 方法。这里我们从 `RequestManagerFragment` 中通过 `getGlideLifecycle()` 获取到了 `Lifecycle` 对象。`Lifecycle` 对象提供了一系列的、针对 Fragment 生命周期的方法。它们将会在 Fragment 的各个生命周期方法中被回调。
 
-这里主要包含两种操作，一个对从注解生成的类的方法进行调用，然后根据该生成类是否启用了基于 Manifest 的 GlideModule 来决定是否从 Manifest 中解析 GlideModule。接下来就是对两种不同方式得到的 GlideModule 的方法进行调用。所以，从这里我们也可以看出来，注解的 GlideModule 的优先级是高于 Manifest 中的 GlideModule 的，毕竟它可以通过在 `isManifestParsingEnabled()` 方法中返回 `false` 来直接让 Glide 不从 Manifest 中解析 GlideModule。
-
-    private static void initializeGlide(@NonNull Context context, @NonNull GlideBuilder builder) {
-        Context applicationContext = context.getApplicationContext();
-
-        // 获取注解生成的 GlideModule
-        GeneratedAppGlideModule annotationGeneratedModule = getAnnotationGeneratedGlideModules();
-        List<com.bumptech.glide.module.GlideModule> manifestModules = Collections.emptyList();
-        // 没有使用注解或者使用了 Manifest 中声明 GlideModule 的话就从 Manifest 中解析
-        if (annotationGeneratedModule == null || annotationGeneratedModule.isManifestParsingEnabled()) {
-            manifestModules = new ManifestParser(applicationContext).parse();
-        }
-
-        // 对从注解中生成的 GlideModule 进行处理
-        if (annotationGeneratedModule != null && !annotationGeneratedModule.getExcludedModuleClasses().isEmpty()) {
-            Set<Class<?>> excludedModuleClasses = annotationGeneratedModule.getExcludedModuleClasses();
-            Iterator<com.bumptech.glide.module.GlideModule> iterator = manifestModules.iterator();
-            while (iterator.hasNext()) {
-                com.bumptech.glide.module.GlideModule current = iterator.next();
-                if (!excludedModuleClasses.contains(current.getClass())) {
-                    continue;
-                }
-                iterator.remove();
-            }
-        }
-
-        // 对 Manifest 中的 GlideModule 进行处理
-        RequestManagerRetriever.RequestManagerFactory factory =
-                annotationGeneratedModule != null ? annotationGeneratedModule.getRequestManagerFactory() : null;
-        builder.setRequestManagerFactory(factory);
-        for (com.bumptech.glide.module.GlideModule module : manifestModules) {
-            module.applyOptions(applicationContext, builder);
-        }
-
-        if (annotationGeneratedModule != null) {
-            annotationGeneratedModule.applyOptions(applicationContext, builder);
-        }
-
-        // 使用构建者最终构建出一个 Glide 实例
-        Glide glide = builder.build(applicationContext);
-
-        // 注册 GlideModule
-        for (com.bumptech.glide.module.GlideModule module : manifestModules) {
-            module.registerComponents(applicationContext, glide, glide.registry);
-        }
-        if (annotationGeneratedModule != null) {
-            annotationGeneratedModule.registerComponents(applicationContext, glide, glide.registry);
-        }
-        applicationContext.registerComponentCallbacks(glide);
-
-        // 赋值给静态的单例实例
-        Glide.glide = glide;
+```java
+  private RequestManager fragmentGet(Context context, FragmentManager fm, 
+    Fragment parentHint, boolean isParentVisible) {
+    RequestManagerFragment current = getRequestManagerFragment(fm, parentHint, isParentVisible);
+    RequestManager requestManager = current.getRequestManager();
+    if (requestManager == null) {
+      Glide glide = Glide.get(context);
+      requestManager =
+          factory.build(
+              glide, current.getGlideLifecycle(), current.getRequestManagerTreeNode(), context);
+      current.setRequestManager(requestManager);
     }
+    return requestManager;
+  }
+```
 
-### load()
+然后，我们将该 `Lifecycle` 传入到 `RequestManager` 中，以 `RequestManager` 中的两个方法为例，`RequestManager` 会对 `Lifecycle` 进行监听，从而达到了对 Fragment 的生命周期进行监听的目的：
+
+```java
+  public void onStart() {
+    resumeRequests();
+    targetTracker.onStart();
+  }
+
+  public void onStop() {
+    pauseRequests();
+    targetTracker.onStop();
+  }
+```
+
+## 2、load() 方法的执行过程
 
 当我们拿到了 `RequestManager` 之后就可以使用它来调用 `load()` 方法了。在我们的实例中传入的是一个 url，所以会调用下面的这个方法：
 
