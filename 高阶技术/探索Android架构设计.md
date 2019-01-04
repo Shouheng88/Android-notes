@@ -54,25 +54,27 @@ MVP (Model-View-Presenter) 是MVC的演化版本，几个主要部分如下：
 
 这里根据我们的业务场景，该接口的定义如下：
 
-    public interface HomeContract {
+```java
+public interface HomeContract {
 
-        interface IView extends BaseView {
-            void setFirstPage(List<HomeBean.IssueList.ItemList> itemLists);
-            void setNextPage(List<HomeBean.IssueList.ItemList> itemLists);
-            void onError(String msg);
-        }
-
-        interface IPresenter extends BasePresenter {
-            void requestFirstPage();
-            void requestNextPage();
-        }
+    interface IView extends BaseView {
+        void setFirstPage(List<HomeBean.IssueList.ItemList> itemLists);
+        void setNextPage(List<HomeBean.IssueList.ItemList> itemLists);
+        void onError(String msg);
     }
+
+    interface IPresenter extends BasePresenter {
+        void requestFirstPage();
+        void requestNextPage();
+    }
+}
+```
 
 `HomeContract`用来规定View和Presenter应该具有的操作，在这里它用来指定主页的View和Presenter的方法。从上面我们也可以看出，这里的`IView`和`IPresenter`分别实现了`BaseView`和`BasePresenter`。
 
 上面，我们定义了V和P的规范，MVP中还有一项Model，它用来从网络中获取数据。这里我们省去网络相关的具体的代码，你只需要知道`APIRetrofit.getEyepetizerService()`是用来获取Retrofit对应的Service，而`getMoreHomeData()`和`getFirstHomeData()`是用来从指定的接口中获取数据就行。下面是`HomeModel`的定义：
 
-```
+```java
 public class HomeModel {
 
     public Observable<HomeBean> getFirstHomeData() {
@@ -90,7 +92,7 @@ OK，上面我们已经完成了Model的定义和View及Presenter的规范的定
 
 首先是Presenter，下面是我们的`HomePresenter`的定义。在下面的代码中，为了更加清晰地展示其中的逻辑，我删减了一部分无关代码：
 
-```
+```java
 public class HomePresenter implements HomeContract.IPresenter {
 
     private HomeContract.IView view;
@@ -130,7 +132,7 @@ public class HomePresenter implements HomeContract.IPresenter {
 
 然后，就是我们的View层的代码，同样，我对代码做了删减：
 
-```
+```java
 @Route(path = BaseConstants.EYEPETIZER_MENU)
 public class HomeActivity extends CommonActivity<ActivityEyepetizerMenuBinding> implements HomeContract.IView {
 
@@ -245,7 +247,7 @@ MVVM 是 Model-View-ViewModel 的简写。它本质上就是 MVC 的改进版。
 
 下面的是 ViewModel 的代码，我们选择了其中的一个方法来进行说明。当我们定义 ViewModel 的时候，需要继承 ViewModel 类。
 
-```
+```java
 public class GuokrViewModel extends ViewModel {
 
     public LiveData<Resource<GuokrNews>> getGuokrNews(int offset, int limit) {
@@ -285,7 +287,7 @@ public class GuokrViewModel extends ViewModel {
 
 上面我们定义完了 Model 和 ViewModel，下面我们看下 View 层的定义，以及在 View 层中该如何使用 ViewModel。
 
-```
+```java
 @Route(path = BaseConstants.GUOKR_NEWS_LIST)
 public class NewsListFragment extends CommonFragment<FragmentNewsListBinding> {
 
@@ -371,7 +373,7 @@ Talk is cheap，下面让我们动手实践来应用组件化进行开发。你�
 
 然后，我们介绍一下这里的 commons 模块。它用来存放公共的资源和一些依赖，这里我们将两者放在了一个模块中以减少模块的数量。下面是它的 gradle 的部分配置。这里我们使用了 api 来引入各个依赖，以便在其他的模块中也能使用这些依赖。
 
-```
+```groovy
 dependencies {
     api fileTree(include: ['*.jar'], dir: 'libs')
     // ...
@@ -397,7 +399,7 @@ dependencies {
 
 首先，我们需要在`gradle.properties`定义一些布尔类型的变量用来判断各个模块是作为一个 library 还是 application 进行编译。这里我的配置如下面的代码所示。也就是，我为每个模块都定义了这么一个布尔类型的变量，当然，你也可以只定义一个变量，然后在各个模块中使用同一个变量来进行判断。
 
-```
+```groovy
 isGuokrModuleApp=false
 isLiveModuleApp=false
 isLayoutModuleApp=false
@@ -407,7 +409,7 @@ isEyepetizerModuleApp=false
 
 然后，我们来看一下各个模块中的 gradle 该如何配置，这里我们以开眼视频的功能模块作为例子来进行讲解。首先，一个模块作为 library 还是 application 是根据引用的 plugin 来决定的，所以，我们要根据之前定义的布尔变量来决定使用的 plugin：
 
-```
+```groovy
 if (isEyepetizerModuleApp.toBoolean()) {
     apply plugin: 'com.android.application'
 } else {
@@ -419,6 +421,7 @@ if (isEyepetizerModuleApp.toBoolean()) {
 
 如下所示，我们可以根据之前定义的布尔值来决定使用哪一个配置文件：
 
+```groovy
     sourceSets {
         main {
             jniLibs.srcDirs = ['libs']
@@ -429,9 +432,11 @@ if (isEyepetizerModuleApp.toBoolean()) {
             }
         }
     }
+```
 
 此外，还需要注意的是，如果我们希望在每个模块中都能应用 DataBinding 和 Java 8 的一些特性，那么你需要在每个模块里面都加入下面的配置：
 
+```gradle
     // use data binding
     dataBinding {
         enabled = true
@@ -441,6 +446,7 @@ if (isEyepetizerModuleApp.toBoolean()) {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+```
 
 对于编译时注解之类的配置，我们也需要在每个模块里面都进行声明。
 
