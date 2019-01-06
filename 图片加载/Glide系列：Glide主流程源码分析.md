@@ -777,36 +777,7 @@ Glide 对这部分内容的处理也非常巧妙，它使用没有 UI 的 Fragme
       decoded.recycle();
     }
 
-    final EncodeStrategy encodeStrategy;
-    final ResourceEncoder<Z> encoder;
-    if (decodeHelper.isResourceEncoderAvailable(transformed)) {
-      encoder = decodeHelper.getResultEncoder(transformed);
-      encodeStrategy = encoder.getEncodeStrategy(options);
-    } else {
-      encoder = null;
-      encodeStrategy = EncodeStrategy.NONE;
-    }
-
-    Resource<Z> result = transformed;
-    boolean isFromAlternateCacheKey = !decodeHelper.isSourceKey(currentSourceKey);
-    if (diskCacheStrategy.isResourceCacheable(isFromAlternateCacheKey, dataSource,
-        encodeStrategy)) {
-      final Key key;
-      switch (encodeStrategy) {
-        case SOURCE:
-          key = new DataCacheKey(currentSourceKey, signature);
-          break;
-        case TRANSFORMED:
-          key = new ResourceCacheKey(/*各种参数*/);
-          break;
-        default:
-          throw new IllegalArgumentException("Unknown strategy: " + encodeStrategy);
-      }
-
-      LockedResource<Z> lockedResult = LockedResource.obtain(transformed);
-      deferredEncodeManager.init(key, encoder, lockedResult);
-      result = lockedResult;
-    }
+    // ... 缓存相关的逻辑，略
     return result;
   }
 ```
@@ -845,16 +816,7 @@ Glide 对这部分内容的处理也非常巧妙，它使用没有 UI 的 Fragme
 
 ```java
   void handleResultOnMainThread() {
-    stateVerifier.throwIfRecycled();
-    if (isCancelled) {
-      resource.recycle();
-      release(false /*isRemovedFromQueue*/);
-      return;
-    } else if (cbs.isEmpty()) {
-      throw new IllegalStateException("Received a resource without any callbacks to notify");
-    } else if (hasResource) {
-      throw new IllegalStateException("Already have resource");
-    }
+    // ... 略
     engineResource = engineResourceFactory.build(resource, isCacheable);
     hasResource = true;
 
@@ -886,16 +848,7 @@ Glide 对这部分内容的处理也非常巧妙，它使用没有 UI 的 Fragme
 
     isCallingCallbacks = true;
     try {
-      boolean anyListenerHandledUpdatingTarget = false;
-      if (requestListeners != null) {
-        for (RequestListener<R> listener : requestListeners) {
-          anyListenerHandledUpdatingTarget |=
-              listener.onResourceReady(result, model, target, dataSource, isFirstResource);
-        }
-      }
-      anyListenerHandledUpdatingTarget |=
-          targetListener != null
-              && targetListener.onResourceReady(result, model, target, dataSource, isFirstResource);
+      // ... 略
 
       if (!anyListenerHandledUpdatingTarget) {
         Transition<? super R> animation =
@@ -922,12 +875,14 @@ Glide 对这部分内容的处理也非常巧妙，它使用没有 UI 的 Fragme
 
 #### 3.4.2 小结
 
+![阶段4：将 Drawable 展示到 ImageView 的过程](res/glide_into_stage4.jpg)
+
 上面是我们将之前得到的 `Drawable`  显示到控件上面的过程。这个方法包含了一定的逻辑，涉及的代码比较多，但是整体的逻辑比较简单，所以这部分的篇幅并不长。
 
 ### 4、总结
 
 以上的内容便是我们的 Glide 加载图片的整个流程。从文章的篇幅和涉及的代码也可以看出，整个完整的过程是比较复杂的。从整体来看，Glide 之前启动和最终显示图片的过程比较简单、逻辑也比较清晰。最复杂的地方也是核心的地方在于 `DecodeJob` 的状态切换。
 
-上面的文章中，我们重点梳理图片加载的整个流程，对于图片缓存和缓存的图片的加载的过程我没有做过多的介绍。我们希望下一篇文章中专门来介绍这部分内容。
+上面的文章中，我们重点梳理图片加载的整个流程，对于图片缓存和缓存的图片的加载的过程我没有做过多的介绍。我们会在下一篇文章中专门来介绍这部分内容。
 
 以上。
