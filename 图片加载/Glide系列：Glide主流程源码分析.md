@@ -677,6 +677,7 @@ Glide 对这部分内容的处理也非常巧妙，它使用没有 UI 的 Fragme
 经过了上面的一系列猛如虎的操作之后，我们进入了 `loadWithExceptionList()` 方法，这里会对 `DecodePath` 进行过滤，以得到我们期望的图片的类型。这个方法中调用了 `DecodePath` 的 `decode()` 方法。这个方法比较重要，它像一个岔路口：1 处的代码是将数据转换成我们期望的图片的过程；2 处的代码是当得到了期望的图片之后对处理继续处理并显示的过程。
 
 ```java
+  // DecodePath#decode()
   public Resource<Transcode> decode(DataRewinder<DataType> rewinder, int width, int height,
       Options options, DecodeCallback<ResourceType> callback) throws GlideException {
     Resource<ResourceType> decoded = decodeResource(rewinder, width, height, options); // 1
@@ -738,382 +739,36 @@ Glide 对这部分内容的处理也非常巧妙，它使用没有 UI 的 Fragme
 
 #### 3.3.2 小结
 
+![阶段3：将输入流转换为 Drawable 的过程](res/glide_into_stage3.jpg)
+
 怎么样，是不是觉得这个过程比打开输入流的过程复杂多了？毕竟这个部分涉及到了从缓存当中取数据以及向缓存写数据的过程，算的上是核心部分了。整体而言，这部分的设计还是非常巧的，即使用了状态模式，根据当前的状态来决定下一个 `Generator`。从网络中拿到输入流之后又使用 `DataCacheGenerator` 从缓存当中读取数据，这个过程连我第一次读源码的时候都没发现，以至于后来调试验证了推理之后才确信这部分是这样设计的……
 
+### 3.4 阶段4：将 Drawable 展示到 ImageView 的过程
 
+根据上面的分析，我们已经从网络中得到了图片数据，并且已经将其放置到了缓存中，又从缓存当中取出数据进行准备进行显示。上面的过程比较复杂，下面将要出场的这个阶段也并不轻松……
 
+#### 3.4.1 最终展示图片的过程
 
+在上面分析中，我们已经进入到了之前所谓的岔路口，这里我们再给出这个方法的定义如下。上面的分析到了代码 1 处，现在我们继续从代码 2 处进行分析。
 
-## 拿到图片的输入流之后的回调
-
-##### SourceGenerator#onDataReady()
-
-  @Override
-  public void onDataReady(Object data) {
-    DiskCacheStrategy diskCacheStrategy = helper.getDiskCacheStrategy();
-    if (data != null && diskCacheStrategy.isDataCacheable(loadData.fetcher.getDataSource())) {
-      dataToCache = data;
-      cb.reschedule();
-    } else {
-      cb.onDataFetcherReady(loadData.sourceKey, data, loadData.fetcher,
-          loadData.fetcher.getDataSource(), originalKey);
-    }
-  }
-
-##### DecodeJob#onDataFetcherReady()
-
-  public void onDataFetcherReady(Key sourceKey, Object data, DataFetcher<?> fetcher, DataSource dataSource, Key attemptedKey) {
-    this.currentSourceKey = sourceKey;
-    this.currentData = data;
-    this.currentFetcher = fetcher;
-    this.currentDataSource = dataSource;
-    this.currentAttemptingKey = attemptedKey;
-    if (Thread.currentThread() != currentThread) {
-      runReason = RunReason.DECODE_DATA;
-      callback.reschedule(this);
-    } else {
-      GlideTrace.beginSection("DecodeJob.decodeFromRetrievedData");
-      try {
-        decodeFromRetrievedData();
-      } finally {
-        GlideTrace.endSection();
-      }
-    }
-  }
-
-##### DecodeJob#decodeFromRetrievedData()
-
-  private void decodeFromRetrievedData() {
-    Resource<R> resource = null;
-    try {
-      resource = decodeFromData(currentFetcher, currentData, currentDataSource);
-    } catch (GlideException e) {
-      e.setLoggingDetails(currentAttemptingKey, currentDataSource);
-      throwables.add(e);
-    }
-    if (resource != null) {
-      notifyEncodeAndRelease(resource, currentDataSource);
-    } else {
-      runGenerators();
-    }
-  }
-
-##### DecodeJob#decodeFromData()
-
-  private <Data> Resource<R> decodeFromData(DataFetcher<?> fetcher, Data data,
-      DataSource dataSource) throws GlideException {
-    try {
-      if (data == null) {
-        return null;
-      }
-      Resource<R> result = decodeFromFetcher(data, dataSource);
-      return result;
-    } finally {
-      fetcher.cleanup();
-    }
-  }
-
-##### DecodeJob#decodeFromFetcher()
-
-  private <Data> Resource<R> decodeFromFetcher(Data data, DataSource dataSource)
-      throws GlideException {
-    LoadPath<Data, ?, R> path = decodeHelper.getLoadPath((Class<Data>) data.getClass());
-    return runLoadPath(data, dataSource, path);
-  }
-
-##### DecodeJob#runLoadPath()
-
-  private <Data, ResourceType> Resource<R> runLoadPath(Data data, DataSource dataSource,
-      LoadPath<Data, ResourceType, R> path) throws GlideException {
-    Options options = getOptionsWithHardwareConfig(dataSource);
-    DataRewinder<Data> rewinder = glideContext.getRegistry().getRewinder(data);
-    try {
-      return path.load(rewinder, options, width, height, new DecodeCallback<ResourceType>(dataSource));
-    } finally {
-      rewinder.cleanup();
-    }
-  }
-
-在这里我们传入了一个实例化的 DecodeCallback，它的作用是？
-
-##### LoadPath#load()
-
-  public Resource<Transcode> load(DataRewinder<Data> rewinder, @NonNull Options options, int width,
-      int height, DecodePath.DecodeCallback<ResourceType> decodeCallback) throws GlideException {
-    List<Throwable> throwables = Preconditions.checkNotNull(listPool.acquire());
-    try {
-      return loadWithExceptionList(rewinder, options, width, height, decodeCallback, throwables);
-    } finally {
-      listPool.release(throwables);
-    }
-  }
-
-##### LoadPath#loadWithExceptionList()
-
-  private Resource<Transcode> loadWithExceptionList(DataRewinder<Data> rewinder, Options options, 
-      int width, int height, DecodePath.DecodeCallback<ResourceType> decodeCallback,
-      List<Throwable> exceptions) throws GlideException {
-    Resource<Transcode> result = null;
-    for (int i = 0, size = decodePaths.size(); i < size; i++) {
-      DecodePath<Data, ResourceType, Transcode> path = decodePaths.get(i);
-      try {
-        result = path.decode(rewinder, width, height, options, decodeCallback);
-      } catch (GlideException e) {
-        exceptions.add(e);
-      }
-      if (result != null) {
-        break;
-      }
-    }
-    // ... 
-    return result;
-  }
-
-##### DecodePath#decode()
-
+```java
+  // DecodePath#decode()
   public Resource<Transcode> decode(DataRewinder<DataType> rewinder, int width, int height,
       Options options, DecodeCallback<ResourceType> callback) throws GlideException {
-    Resource<ResourceType> decoded = decodeResource(rewinder, width, height, options);
-    Resource<ResourceType> transformed = callback.onResourceDecoded(decoded);
-    return transcoder.transcode(transformed, options);
+    Resource<ResourceType> decoded = decodeResource(rewinder, width, height, options); // 1
+    Resource<ResourceType> transformed = callback.onResourceDecoded(decoded); // 2
+    return transcoder.transcode(transformed, options); // 3
   }
+```
 
-##### DecodePath#decodeResource()
+这里会调用 `callback` 的方法进行回调，它最终会回调到 `DecodeJob` 的 `onResourceDecoded()` 方法。其主要的逻辑是根据我们设置的参数进行变化，也就是说，如果我们使用了 `centerCrop` 等参数，那么这里将会对其进行处理。这里的 `Transformation` 是一个接口，它的一系列的实现都是对应于 `scaleType` 等参数的。
 
-  private Resource<ResourceType> decodeResource(DataRewinder<DataType> rewinder, int width,
-      int height, @NonNull Options options) throws GlideException {
-    List<Throwable> exceptions = Preconditions.checkNotNull(listPool.acquire());
-    try {
-      return decodeResourceWithList(rewinder, width, height, options, exceptions);
-    } finally {
-      listPool.release(exceptions);
-    }
-  }
-
-##### DecodePath#decodeResourceWithList()
-
-  private Resource<ResourceType> decodeResourceWithList(DataRewinder<DataType> rewinder, int width,
-      int height, @NonNull Options options, List<Throwable> exceptions) throws GlideException {
-    Resource<ResourceType> result = null;
-    for (int i = 0, size = decoders.size(); i < size; i++) {
-      ResourceDecoder<DataType, ResourceType> decoder = decoders.get(i);
-      try {
-        DataType data = rewinder.rewindAndGet();
-        if (decoder.handles(data, options)) {
-          data = rewinder.rewindAndGet();
-          result = decoder.decode(data, width, height, options);
-        }
-      } catch (IOException | RuntimeException | OutOfMemoryError e) {
-        exceptions.add(e);
-      }
-
-      if (result != null) {
-        break;
-      }
-    }
-
-    return result;
-  }
-
-##### StreamBitmapDecoder#decode()
-
-  public Resource<Bitmap> decode(InputStream source, int width, int height, Options options) throws IOException {
-    final RecyclableBufferedInputStream bufferedStream;
-    final boolean ownsBufferedStream;
-    if (source instanceof RecyclableBufferedInputStream) {
-      bufferedStream = (RecyclableBufferedInputStream) source;
-      ownsBufferedStream = false;
-    } else {
-      bufferedStream = new RecyclableBufferedInputStream(source, byteArrayPool);
-      ownsBufferedStream = true;
-    }
-
-    ExceptionCatchingInputStream exceptionStream = ExceptionCatchingInputStream.obtain(bufferedStream);
-
-    MarkEnforcingInputStream invalidatingStream = new MarkEnforcingInputStream(exceptionStream);
-    UntrustedCallbacks callbacks = new UntrustedCallbacks(bufferedStream, exceptionStream);
-    try {
-      return downsampler.decode(invalidatingStream, width, height, options, callbacks);
-    } finally {
-      exceptionStream.release();
-      if (ownsBufferedStream) {
-        bufferedStream.release();
-      }
-    }
-  }
-
-##### Downsampler#decode()
-
-  public Resource<Bitmap> decode(InputStream is, int requestedWidth, int requestedHeight,
-      Options options, DecodeCallbacks callbacks) throws IOException {
-    byte[] bytesForOptions = byteArrayPool.get(ArrayPool.STANDARD_BUFFER_SIZE_BYTES, byte[].class);
-    BitmapFactory.Options bitmapFactoryOptions = getDefaultOptions();
-    bitmapFactoryOptions.inTempStorage = bytesForOptions;
-
-    DecodeFormat decodeFormat = options.get(DECODE_FORMAT);
-    DownsampleStrategy downsampleStrategy = options.get(DownsampleStrategy.OPTION);
-    boolean fixBitmapToRequestedDimensions = options.get(FIX_BITMAP_SIZE_TO_REQUESTED_DIMENSIONS);
-    boolean isHardwareConfigAllowed =
-      options.get(ALLOW_HARDWARE_CONFIG) != null && options.get(ALLOW_HARDWARE_CONFIG);
-
-    try {
-      Bitmap result = decodeFromWrappedStreams(is, bitmapFactoryOptions,
-          downsampleStrategy, decodeFormat, isHardwareConfigAllowed, requestedWidth,
-          requestedHeight, fixBitmapToRequestedDimensions, callbacks);
-      return BitmapResource.obtain(result, bitmapPool);
-    } finally {
-      releaseOptions(bitmapFactoryOptions);
-      byteArrayPool.put(bytesForOptions);
-    }
-  }
-
-##### Downsampler#decodeFromWrappedStreams()
-
-  private Bitmap decodeFromWrappedStreams(InputStream is,
-      BitmapFactory.Options options, DownsampleStrategy downsampleStrategy,
-      DecodeFormat decodeFormat, boolean isHardwareConfigAllowed, int requestedWidth,
-      int requestedHeight, boolean fixBitmapToRequestedDimensions,
-      DecodeCallbacks callbacks) throws IOException {
-    long startTime = LogTime.getLogTime();
-
-    int[] sourceDimensions = getDimensions(is, options, callbacks, bitmapPool);
-    int sourceWidth = sourceDimensions[0];
-    int sourceHeight = sourceDimensions[1];
-    String sourceMimeType = options.outMimeType;
-
-    if (sourceWidth == -1 || sourceHeight == -1) {
-      isHardwareConfigAllowed = false;
-    }
-
-    int orientation = ImageHeaderParserUtils.getOrientation(parsers, is, byteArrayPool);
-    int degreesToRotate = TransformationUtils.getExifOrientationDegrees(orientation);
-    boolean isExifOrientationRequired = TransformationUtils.isExifOrientationRequired(orientation);
-
-    int targetWidth = requestedWidth == Target.SIZE_ORIGINAL ? sourceWidth : requestedWidth;
-    int targetHeight = requestedHeight == Target.SIZE_ORIGINAL ? sourceHeight : requestedHeight;
-
-    ImageType imageType = ImageHeaderParserUtils.getType(parsers, is, byteArrayPool);
-
-    calculateScaling(/*各种参数*/);
-    calculateConfig(/*各种参数*/);
-
-    boolean isKitKatOrGreater = Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT;
-    if ((options.inSampleSize == 1 || isKitKatOrGreater) && shouldUsePool(imageType)) {
-      int expectedWidth;
-      int expectedHeight;
-      if (sourceWidth >= 0 && sourceHeight >= 0 && fixBitmapToRequestedDimensions && isKitKatOrGreater) {
-        expectedWidth = targetWidth;
-        expectedHeight = targetHeight;
-      } else {
-        float densityMultiplier = isScaling(options) ? (float) options.inTargetDensity / options.inDensity : 1f;
-        int sampleSize = options.inSampleSize;
-        int downsampledWidth = (int) Math.ceil(sourceWidth / (float) sampleSize);
-        int downsampledHeight = (int) Math.ceil(sourceHeight / (float) sampleSize);
-        expectedWidth = Math.round(downsampledWidth * densityMultiplier);
-        expectedHeight = Math.round(downsampledHeight * densityMultiplier);
-      }
-      if (expectedWidth > 0 && expectedHeight > 0) {
-        setInBitmap(options, bitmapPool, expectedWidth, expectedHeight);
-      }
-    }
-    Bitmap downsampled = decodeStream(is, options, callbacks, bitmapPool);
-    callbacks.onDecodeComplete(bitmapPool, downsampled);
-
-    Bitmap rotated = null;
-    if (downsampled != null) {
-      downsampled.setDensity(displayMetrics.densityDpi);
-      rotated = TransformationUtils.rotateImageExif(bitmapPool, downsampled, orientation);
-      if (!downsampled.equals(rotated)) {
-        bitmapPool.put(downsampled);
-      }
-    }
-
-    return rotated;
-  }
-
-##### Downsampler#decodeStream()
-
-  private static Bitmap decodeStream(InputStream is, BitmapFactory.Options options,
-      DecodeCallbacks callbacks, BitmapPool bitmapPool) throws IOException {
-    if (options.inJustDecodeBounds) {
-      is.mark(MARK_POSITION);
-    } else {
-      callbacks.onObtainBounds();
-    }
-    int sourceWidth = options.outWidth;
-    int sourceHeight = options.outHeight;
-    String outMimeType = options.outMimeType;
-    final Bitmap result;
-    TransformationUtils.getBitmapDrawableLock().lock();
-    try {
-      result = BitmapFactory.decodeStream(is, null, options);
-    } catch (IllegalArgumentException e) {
-      IOException bitmapAssertionException =
-          newIoExceptionForInBitmapAssertion(e, sourceWidth, sourceHeight, outMimeType, options);
-      if (options.inBitmap != null) {
-        try {
-          is.reset();
-          bitmapPool.put(options.inBitmap);
-          options.inBitmap = null;
-          return decodeStream(is, options, callbacks, bitmapPool);
-        } catch (IOException resetException) {
-          throw bitmapAssertionException;
-        }
-      }
-      throw bitmapAssertionException;
-    } finally {
-      TransformationUtils.getBitmapDrawableLock().unlock();
-    }
-
-    if (options.inJustDecodeBounds) {
-      is.reset();
-    }
-    return result;
-  }
-
-
-
-### 得到了图片之后的逻辑：
-
-当拿到了 Bitmap 之后又会一路 return 回到之前的位置：我们从下面的代码开始
-
-##### DecodePath#decode()
-
-  public Resource<Transcode> decode(DataRewinder<DataType> rewinder, int width, int height,
-      Options options, DecodeCallback<ResourceType> callback) throws GlideException {
-    Resource<ResourceType> decoded = decodeResource(rewinder, width, height, options);
-    Resource<ResourceType> transformed = callback.onResourceDecoded(decoded);
-    return transcoder.transcode(transformed, options);
-  }
-
-transcoder 是 ResourceTranscoder 的实现，用来将 Bitmap 转换成指定的类型。
-
-##### DecodeJob 的内部类 DecodeCallback
-
-   这里会调用 callback 进行回调，我们上面提到过它，
-
-  private final class DecodeCallback<Z> implements DecodePath.DecodeCallback<Z> {
-
-    private final DataSource dataSource;
-
-    @Synthetic
-    DecodeCallback(DataSource dataSource) {
-      this.dataSource = dataSource;
-    }
-
-    @NonNull
-    @Override
-    public Resource<Z> onResourceDecoded(@NonNull Resource<Z> decoded) {
-      return DecodeJob.this.onResourceDecoded(dataSource, decoded);
-    }
-  }
-
-##### DecodeJob#onResourceDecoded()
-
+```java
   <Z> Resource<Z> onResourceDecoded(DataSource dataSource, Resource<Z> decoded) {
     Class<Z> resourceSubClass = (Class<Z>) decoded.get().getClass();
     Transformation<Z> appliedTransformation = null;
     Resource<Z> transformed = decoded;
+    // 对得到的图片资源进行变换
     if (dataSource != DataSource.RESOURCE_DISK_CACHE) {
       appliedTransformation = decodeHelper.getTransformation(resourceSubClass);
       transformed = appliedTransformation.transform(glideContext, decoded, width, height);
@@ -1134,25 +789,15 @@ transcoder 是 ResourceTranscoder 的实现，用来将 Bitmap 转换成指定�
 
     Resource<Z> result = transformed;
     boolean isFromAlternateCacheKey = !decodeHelper.isSourceKey(currentSourceKey);
-    if (diskCacheStrategy.isResourceCacheable(isFromAlternateCacheKey, dataSource, encodeStrategy)) {
-      if (encoder == null) {
-        throw new Registry.NoResultEncoderAvailableException(transformed.get().getClass());
-      }
+    if (diskCacheStrategy.isResourceCacheable(isFromAlternateCacheKey, dataSource,
+        encodeStrategy)) {
       final Key key;
       switch (encodeStrategy) {
         case SOURCE:
           key = new DataCacheKey(currentSourceKey, signature);
           break;
         case TRANSFORMED:
-          key = new ResourceCacheKey(
-                  decodeHelper.getArrayPool(),
-                  currentSourceKey,
-                  signature,
-                  width,
-                  height,
-                  appliedTransformation,
-                  resourceSubClass,
-                  options);
+          key = new ResourceCacheKey(/*各种参数*/);
           break;
         default:
           throw new IllegalArgumentException("Unknown strategy: " + encodeStrategy);
@@ -1164,43 +809,41 @@ transcoder 是 ResourceTranscoder 的实现，用来将 Bitmap 转换成指定�
     }
     return result;
   }
+```
 
+在上面的方法中对图形进行变换之后还会根据图片的缓存策略决定对图片进行缓存。然后这个方法就直接返回了我们变换之后的图象。这样我们就又回到了之前的岔路口。程序继续执行就到了岔路口方法的第 3 行。这里还会使用 `BitmapDrawableTranscoder` 的 `transcode()` 方法返回 `Resouces<BitmapDrawable>`。只是这里会使用 `BitmapDrawableTranscoder` 包装一层，即做了延迟初始化处理。
 
-### 转码之后
+这样，当第 3 行方法也执行完毕，我们的岔路口方法就分析完了。然后就是不断向上 `return` 进行返回。所以，我们又回到了 `DecodeJob` 的 `decodeFromRetrievedData()` 方法如下。这里会进入到下面方法的 1 处来完成最终的图片显示操作。
 
-会一路回到下面的方法：
-
-  private void notifyEncodeAndRelease(Resource<R> resource, DataSource dataSource) {
-    if (resource instanceof Initializable) {
-      ((Initializable) resource).initialize();
-    }
-
-    Resource<R> result = resource;
-    LockedResource<R> lockedResource = null;
-    if (deferredEncodeManager.hasResourceToEncode()) {
-      lockedResource = LockedResource.obtain(resource);
-      result = lockedResource;
-    }
-
-    notifyComplete(result, dataSource);
-
-    stage = Stage.ENCODE;
+```java
+  private void decodeFromRetrievedData() {
+    Resource<R> resource = null;
     try {
-      if (deferredEncodeManager.hasResourceToEncode()) {
-        deferredEncodeManager.encode(diskCacheProvider, options);
-      }
-    } finally {
-      if (lockedResource != null) {
-        lockedResource.unlock();
-      }
+      resource = decodeFromData(currentFetcher, currentData, currentDataSource);
+    } catch (GlideException e) {
+      throwables.add(e);
     }
-    onEncodeComplete();
+    if (resource != null) {
+      notifyEncodeAndRelease(resource, currentDataSource); // 1
+    } else {
+      runGenerators();
+    }
   }
+```
 
-##### EngineJob#handleResultOnMainThread()
+接着程序会达到 `DecodeJob` 的 `onResourceReady()` 方法如下。因为达到下面的方法的过程的逻辑比较简单，我们就不贴出这部分的代码了。
 
-然后从 notifyComplete() 进入到发送消息到主线程：
+```java
+  public void onResourceReady(Resource<R> resource, DataSource dataSource) {
+    this.resource = resource;
+    this.dataSource = dataSource;
+    MAIN_THREAD_HANDLER.obtainMessage(MSG_COMPLETE, this).sendToTarget();
+  }
+```
 
+这里会获取到一个消息并将其发送到 `Handler` 中进行处理。当 `Handler` 收到消息之后会调用 `EncodeJob` 的 `handleResultOnMainThread()` 方法继续处理：
+
+```java
   void handleResultOnMainThread() {
     stateVerifier.throwIfRecycled();
     if (isCancelled) {
@@ -1222,14 +865,69 @@ transcoder 是 ResourceTranscoder 的实现，用来将 Bitmap 转换成指定�
       ResourceCallback cb = cbs.get(i);
       if (!isInIgnoredCallbacks(cb)) {
         engineResource.acquire();
-        cb.onResourceReady(engineResource, dataSource);
+        cb.onResourceReady(engineResource, dataSource); // 1
       }
     }
     engineResource.release();
 
     release(false /*isRemovedFromQueue*/);
   }
+```
 
+经过一系列的判断之后程序进入到代码 1 处，然后继续进行回调。这里的 `cb` 就是 `SingeleRequest`。
 
+程序到了 `SingleRequest` 的方法中之后在下面的代码 1 处回调 `Target` 的方法。而这里的 `Target` 就是我们之前所说的 `ImageViewTarget`.
 
+```java
+  private void onResourceReady(Resource<R> resource, R result, DataSource dataSource) {
+    boolean isFirstResource = isFirstReadyResource();
+    status = Status.COMPLETE;
+    this.resource = resource;
 
+    isCallingCallbacks = true;
+    try {
+      boolean anyListenerHandledUpdatingTarget = false;
+      if (requestListeners != null) {
+        for (RequestListener<R> listener : requestListeners) {
+          anyListenerHandledUpdatingTarget |=
+              listener.onResourceReady(result, model, target, dataSource, isFirstResource);
+        }
+      }
+      anyListenerHandledUpdatingTarget |=
+          targetListener != null
+              && targetListener.onResourceReady(result, model, target, dataSource, isFirstResource);
+
+      if (!anyListenerHandledUpdatingTarget) {
+        Transition<? super R> animation =
+            animationFactory.build(dataSource, isFirstResource);
+        target.onResourceReady(result, animation); // 1
+      }
+    } finally {
+      isCallingCallbacks = false;
+    }
+
+    notifyLoadSuccess();
+  }
+```
+
+当程序到了 `ImageViewTarget` 之后会使用 `setResource()` 方法最终调用 `ImageView` 的方法将 `Drawable` 显示到控件上面。
+
+```java
+  protected void setResource(@Nullable Drawable resource) {
+    view.setImageDrawable(resource);
+  }
+```
+
+这样，我们的 Glide 的加载过程就结束了。
+
+#### 3.4.2 小结
+
+上面是我们将之前得到的 `Drawable`  显示到控件上面的过程。这个方法包含了一定的逻辑，涉及的代码比较多，但是整体的逻辑比较简单，所以这部分的篇幅并不长。
+
+### 4、总结
+
+以上的内容便是我们的 Glide 加载图片的整个流程。从文章的篇幅和涉及的代码也可以看出，整个完整的过程是比较复杂的。从整体来看，Glide 之前启动和最终显示图片的过程比较简单、逻辑也比较清晰。最复杂的地方也是核心的地方在于 `DecodeJob` 的状态切换。
+
+上面的文章中，我们重点梳理图片加载的整个流程，对于图片缓存和缓存的图片的加载的过程我没有做过多的介绍。我们希望下一篇文章中专门来介绍这部分内容。
+
+以上。
