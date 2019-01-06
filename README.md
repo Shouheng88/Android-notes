@@ -49,7 +49,7 @@
 - [《JVM 扫盲：虚拟机执行子系统》](https://juejin.im/post/5b4a1fb7e51d4519213fd374)：类文件的结构、双亲委派模型和执行引擎的执行过程等
 - [《JVM 扫盲：虚拟机内存模型与高效并发》](https://juejin.im/post/5b4f48e75188251b1b448aa0)：Java 虚拟机内存模型和各种锁的总结
 
-### Android 常用的 API 源码分析
+### APIs
 
 - [《LruCache 的使用和源码分析》](API简析/LruCache.md)：内存缓存框架 LurCache 的源码分析
 
@@ -67,7 +67,7 @@
 常用的 Java 第三方库 JodaTime》](https://blog.csdn.net/github_35186068/article/details/83754146)：常用的 Java 第三方库 JodaTime 的 API 总结
 - [《MySQL 基础知识（全）》](https://juejin.im/post/5a12d62bf265da431d3c4a01)：你的 MySQL 命令和知识点速查宝典
 
-### 面试题总结 & 答案
+### 面试题
 
 - [《2017 年 Android 高级工程师面试题总结》（含答案，编辑中）](笔试面试/Android高级软件工程师2017.md)
 ：2017 年 Android 中级、高级工程师面试题总结
