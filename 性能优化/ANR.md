@@ -1,68 +1,154 @@
-# ANR
+# ANR 的原因和解决方案
 
-## ANR 出现的情形
+## 1、出现 ANR 的情况
+
+满足下面的一种情况系统就会弹出 ANR 提示
 
 1. 输入事件(按键和触摸事件) 5s 内没被处理；
-2. BroadcastReceiver 的事件( `onRecieve()` 方法)在规定时间内没处理完(前台广播为 10s，后台广播为 60s)；
+2. BroadcastReceiver 的事件 ( `onRecieve()` 方法) 在规定时间内没处理完 (前台广播为 10s，后台广播为 60s)；
 3. Service 前台 20s 后台 200s 未完成启动；
 4. ContentProvider 的 `publish()` 在 10s 内没进行完。
 
-通常情况下就是主线程被阻塞造成的
+通常情况下就是主线程被阻塞造成的。
 
-## ANR 的实现原理
+## 2、ANR 的实现原理
 
-以广播为例，会在开始执行任务之前发送一条消息，执行完毕之后撤销这条消息，如果执行因为超时的原因没有撤销就弹出 ANR 提示了。
+以输入无响应的过程为例（基于 9.0 代码）：
 
-    final void processNextBroadcast(boolean fromMsg) {
-        synchronized(mService) {
-            ...
-            // step 2: 处理当前有序广播
-            do {
-                r = mOrderedBroadcasts.get(0);
-                // 获取所有该广播所有的接收者
-                int numReceivers = (r.receivers != null) ? r.receivers.size() : 0;
-                if (mService.mProcessesReady && r.dispatchTime > 0) {
-                    long now = SystemClock.uptimeMillis();
-                    if ((numReceivers > 0) &&
-                            (now > r.dispatchTime + (2*mTimeoutPeriod*numReceivers))) {
-                        // 当广播处理时间超时，则强制结束这条广播
-                        broadcastTimeoutLocked(false);
-                        ...
-                    }
-                }
-                if (r.receivers == null || r.nextReceiver >= numReceivers
-                        || r.resultAbort || forceReceive) {
-                    if (r.resultTo != null) {
-                        // 处理广播消息消息
-                        performReceiveLocked(r.callerApp, r.resultTo,
-                            new Intent(r.intent), r.resultCode,
-                            r.resultData, r.resultExtras, false, false, r.userId);
-                        r.resultTo = null;
-                    }
-                    // 取消BROADCAST_TIMEOUT_MSG消息
-                    cancelBroadcastTimeoutLocked();
-                }
-            } while (r == null);
-            ...
+最终弹出 ANR 对话框的位置是与 AMS 同目录的类 `AppErrors` 的 `handleShowAnrUi()` 方法。这个类用来处理程序中出现的各种错误，不只 ANR，强行 Crash 也在这个类中处理。
 
-            // step 3: 获取下条有序广播
-            r.receiverTime = SystemClock.uptimeMillis();
-            if (!mPendingBroadcastTimeoutMessage) {
-                long timeoutTime = r.receiverTime + mTimeoutPeriod;
-                // 设置广播超时时间，发送BROADCAST_TIMEOUT_MSG
-                setBroadcastTimeoutLocked(timeoutTime);
+```java
+    // base/core/java/com/android/server/am/AppErrors.java
+    void handleShowAnrUi(Message msg) {
+        Dialog dialogToShow = null;
+        synchronized (mService) {
+            AppNotRespondingDialog.Data data = (AppNotRespondingDialog.Data) msg.obj;
+            // ...
+
+            Intent intent = new Intent("android.intent.action.ANR");
+            if (!mService.mProcessesReady) {
+                intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY
+                        | Intent.FLAG_RECEIVER_FOREGROUND);
             }
-            ...
+            mService.broadcastIntentLocked(null, null, intent,
+                    null, null, 0, null, null, null, AppOpsManager.OP_NONE,
+                    null, false, false, MY_PID, Process.SYSTEM_UID, 0 /* TODO: Verify */);
+
+            boolean showBackground = Settings.Secure.getInt(mContext.getContentResolver(),
+                    Settings.Secure.ANR_SHOW_BACKGROUND, 0) != 0;
+            if (mService.canShowErrorDialogs() || showBackground) {
+                dialogToShow = new AppNotRespondingDialog(mService, mContext, data);
+                proc.anrDialog = dialogToShow;
+            } else {
+                MetricsLogger.action(mContext, MetricsProto.MetricsEvent.ACTION_APP_ANR,
+                        AppNotRespondingDialog.CANT_SHOW);
+                // Just kill the app if there is no dialog to be shown.
+                mService.killAppAtUsersRequest(proc, null);
+            }
+        }
+        // If we've created a crash dialog, show it without the lock held
+        if (dialogToShow != null) {
+            dialogToShow.show();
         }
     }
+```
+
+不过从发生 ANR 的地方调用到这里要经过很多的类和方法。最初抛出 ANR 是在 `InputDispatcher.cpp` 中。我们可以通过其中定义的常量来寻找最初触发的位置：
+
+```C++
+// native/services/inputflinger/InputDispatcher.cpp
+constexpr nsecs_t DEFAULT_INPUT_DISPATCHING_TIMEOUT = 5000 * 1000000LL; // 5 sec
+```
+
+从这个类触发的位置会经过层层传递达到 `InputManagerService` 中
+
+```java
+    // base/services/core/java/com/android/server/input/InputManagerService.java
+    private long notifyANR(InputApplicationHandle inputApplicationHandle,
+            InputWindowHandle inputWindowHandle, String reason) {
+        return mWindowManagerCallbacks.notifyANR(
+                inputApplicationHandle, inputWindowHandle, reason);
+    }
+```
+
+这里的 `mWindowManagerCallbacks` 就是 `InputMonitor` ：
+
+```java
+    // base/services/core/java/com/android/server/wm/InputMonitor.java
+    public long notifyANR(InputApplicationHandle inputApplicationHandle,
+            InputWindowHandle inputWindowHandle, String reason) {
+        // ... 略
+
+        if (appWindowToken != null && appWindowToken.appToken != null) {
+            final AppWindowContainerController controller = appWindowToken.getController();
+            final boolean abort = controller != null
+                    && controller.keyDispatchingTimedOut(reason,
+                            (windowState != null) ? windowState.mSession.mPid : -1);
+            if (!abort) {
+                return appWindowToken.mInputDispatchingTimeoutNanos;
+            }
+        } else if (windowState != null) {
+            try {
+                // 使用 AMS 的方法
+                long timeout = ActivityManager.getService().inputDispatchingTimedOut(
+                        windowState.mSession.mPid, aboveSystem, reason);
+                if (timeout >= 0) {
+                    return timeout * 1000000L; // nanoseconds
+                }
+            } catch (RemoteException ex) {
+            }
+        }
+        return 0; // abort dispatching
+    }
+```
+
+然后回在上述方法调用 AMS 的 `inputDispatchingTimedOut()` 方法继续处理，并最终在 `inputDispatchingTimedOut()` 方法中将事件传递给 `AppErrors`
+
+```java
+    // base/services/core/java/com/android/server/am/ActivityManagerService.java
+    public boolean inputDispatchingTimedOut(final ProcessRecord proc,
+            final ActivityRecord activity, final ActivityRecord parent,
+            final boolean aboveSystem, String reason) {
+        // ...
+
+        if (proc != null) {
+            synchronized (this) {
+                if (proc.debugging) {
+                    return false;
+                }
+
+                if (proc.instr != null) {
+                    Bundle info = new Bundle();
+                    info.putString("shortMsg", "keyDispatchingTimedOut");
+                    info.putString("longMsg", annotation);
+                    finishInstrumentationLocked(proc, Activity.RESULT_CANCELED, info);
+                    return true;
+                }
+            }
+            mHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    // 使用 AppErrors 继续处理
+                    mAppErrors.appNotResponding(proc, activity, parent, aboveSystem, annotation);
+                }
+            });
+        }
+
+        return true;
+    }
+```
+
+当事件传递到了 `AppErrors` 之后，它会借助 Handler 处理消息也就调用了最初的那个方法并弹出对话框。
 
 参考：[《Android ANR原理分析》](https://www.cnblogs.com/android-blogs/p/5718302.html)
 
-## ANR 的解决办法
+## 3、ANR 的解决办法
+
+上面分析了 ANR 的成因和原理，下面我们分析下如何解决 ANR. 
 
 ### 1. 使用 adb 导出 ANR 日志并进行分析
 
-发生 ANR　的时候系统会记录　ANR　的信息并将其存储到　`/data/anr/traces.txt`　文件中（在比较新的系统中会被存储都　`/data/anr/anr_*`　文件中）。我们可以使用下面的方式来将其导出到电脑中以便对　ANR　产生的原因进行分析：
+发生 ANR的时候系统会记录 ANR 的信息并将其存储到 `/data/anr/traces.txt` 文件中（在比较新的系统中会被存储都 `/data/anr/anr_*` 文件中）。我们可以使用下面的方式来将其导出到电脑中以便对 ANR 产生的原因进行分析：
 
     adb root
     adb shell ls /data/anr
@@ -80,5 +166,21 @@ TraceView 工具的使用可以参考这篇文章：[《Android 性能分析之T
 
 资料：
 
-- [developer.android.com](https://developer.android.com/topic/performance/vitals/anr)
-- [《Android 性能分析之TraceView使用(应用耗时分析)》](https://blog.csdn.net/android_jianbo/article/details/76608558)： TraceView 工具使用
+- [Android Developer Website](https://developer.android.com/topic/performance/vitals/anr)
+- [《Android 性能分析之TraceView使用(应用耗时分析)》](https://blog.csdn.net/android_jianbo/article/details/76608558)
+
+### 3. 常见的 ANR 场景
+
+1. I/O 阻塞
+2. 网络阻塞
+3. 多线程死锁
+4. 由于响应式编程等导致的方法死循环
+5. 由于某个业务逻辑执行的时间太长
+
+### 4. 避免 ANR 的方法
+
+1. UI线程尽量只做跟UI相关的工作
+2. 耗时的工作 (比如数据库操作，I/O，网络操作等)，采用单独的工作线程处理
+3. 用 Handler 来处理 UI 线程和工作线程的交互
+
+
