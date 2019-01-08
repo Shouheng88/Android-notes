@@ -1,18 +1,120 @@
-# Android 性能优化
+# Android 性能优化：打造高性能 App
 
-编程
+## 1、布局优化
+
+### 1.1 合理选择 ViewGroup
+
+在选择使用 Android 中的布局方式的时候应该遵循：**尽量少使用性能比较低的容器控件,比如 RelativeLayout，但如果使用 RelativeLayout 可以降低布局的层次的时候可以考虑使用**。
+
+Android 中的控件是树状的，降低树的高度可以提升布局性能。RelativeLayout 的布局比 FrameLayout、LinearLayout 等简单，因而可以减少计算过程，提升程序性能。
+
+### 1.2 使用 `<include>` 标签复用布局
+
+**多个地方共用的布局可以使用 `<include>` 标签在各个布局中复用**
+
+```xml
+   <include android:id="@+id/bar_layout" layout="@layout/layout_toolbar"/>
+```
+
+### 1.3 使用 `<merge>` 标签
+
+**可以通过使用 `<merge>` 来降低布局的层次**。 `<merge>` 标签通常与 `<include>` 标签一起使用， `<merge>` 作为可以复用的布局的根控件。然后使用 `<include>` 标签引用该布局。
+
+```xml
+    <!--布局1-->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+        <include android:id="@+id/bar_layout" layout="@layout/layout_toolbar"/>
+    </RelativeLayout>
+    <!--布局2-->
+    <merge>
+        <Button
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+    </merge>
+```
+
+上面的布局方式中布局 2 被布局 1 引用之后其 Button 的控件父容器将会是布局 1 中的 RelativeLayout. 如果我们不使用 `<merge>` 标签而是一个单独的父容器的话就会多一层布局。
+
+### 1.4 使用 `<ViewStub>` 标签
+
+**`<ViewStub>` 标签可以用来在程序运行的时候决定加载哪个布局，而不是一次性全部加载**。
+
+```xml
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content">
+        <ViewStub
+            android:id="@+id/stub"
+            android:inflatedId="@+id/inflatedStart"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout="@layout/start" />
+    </LinearLayout>
+```
+
+然后我们可以使用下面两种方式将布局加载进来：
+
+```java
+((ViewStub) findViewById(R.id.stub)).setVisibility(View.VISIBILITY); // 方式 1
+View v = ((ViewStub) findViewById(R.id.stub)).inflate(); // 方式 2
+```
+
+## 2、绘制优化
+
+### 2.1 onDraw() 方法
+
+**onDraw() 方法会被频繁调用，因此不应该在其中做耗时逻辑和声明对象**。
+
+## 3、内存泄漏
+
+### 3.1 使用 LeakCanary
+
+Square 公司开源的用于检测内存泄漏的库，Github 地址：[LeakCanary](https://github.com/square/leakcanary). 它的配置和使用比较简单，不介绍。
+
+### 3.2 常见的内存泄漏：静态变量
+
+一般人不会犯的错误，即将 View、Activity 和 Context 等类型的变量设置为静态的。因为静态变量的声明周期同整个应用，所以导致其所引用的 Context 无法被释放，致泄漏。某个类的生命周期确实应该与应用的生命周期一致的情况除外。
+
+### 3.3 常见的内存泄漏：单例引用
+
+比如在使用观察者模式的时候，使用静态的列表存储观察者，而观察者引用了 Context，会导致 Context 需要被销毁的时候，因为这里的引用而无法被释放。所以，**使用观察者和单例的时候，如果对象与 Context 相关，那么应该注意适当的时候释放引用**。
+
+### 3.4 常见的内存泄漏：属性动画
+
+从属性动画延申到**开线程并且线程中引用到了 Context 的情景**。因为 Context 需要被销毁的时候，线程或者动画可能还没有执行完毕，因而导致内存泄漏。
+
+解决方案：弱引用或者在合适的位置和时机释放引用。
+
+## 4、ANR
+
+详情参考文章：[《ANR 的原因和解决方案》](ANR.md)
+
+## 其他
 
 ### 图片使用
 
 ### 数据结构
 
+**合理选择数据结构**：根据具体应用场景选择 LinkedList 和 ArrayList，比如 Adapter 中查找比增删要多，因此建议选择 ArrayList. 
 
+**使用优化过的数据集合**：如 `SparseArray`、`SparseBooleanArray`等来替换 HashMap。因为 HashMap 的键必须是对象，而对象比数值类型需要多占用非常多的空间。
 
+**少使用枚举**：枚举可以合理组织数据结构，但是枚举是对象，比普通的数值类型需要多使用很多空间。
 
+**使用 static final 修饰常量**：
 
+```java
+static final int intVal = 42;  
+static final String strVal = "Hello, world!";  
+```
 
+因为常量会在 dex 文件的初始化器当中进行初始化。当我们调用 intVal 时可以直接指向 42 的值，而调用 strVal 会用一种相对轻量级的字符串常量方式，而不是字段搜寻的方式。这种优化方式只对基本数据类型以及 String 类型的常量有效，对于其他数据类型的常量无效。
 
+**合理使用数据结构**：比如 `android.util` 下面的 `Pair<F, S>`，在希望某个方法返回的数据恰好是两个的时候可以使用。显然，这种返回方式比返回数组或者列表含义清晰得多。延申一下：**有时候合理使用数据结构或者使用自定义数据结构，能够起到化腐朽为神奇的作用**。
 
+**多线程**：不要开太多线程，如果小任务很多建议使用线程池或者 AsyncTask，建议直接使用 RxJava 来实现多线程，可读性和性能更好。
 
 
 
@@ -34,10 +136,6 @@ onTrimMemory()方法还有很多种其他类型的回调，可以在手机内存
 ### 5.避免在Bitmap上浪费内存
 
 读取一个Bitmap图片的时候，千万不要去加载不需要的分辨率。可以压缩图片等操作。
-
-### 6.使用优化过的数据集合
-
-Android提供了一系列优化过后的数据集合工具类，如SparseArray、SparseBooleanArray、LongSparseArray，使用这些API可以让我们的程序更加高效。HashMap工具类会相对比较低效，因为它需要为每一个键值对都提供一个对象入口，而SparseArray就避免掉了基本数据类型转换成对象数据类型的时间。
 
 ### 7.知晓内存的开支情况
 
@@ -72,10 +170,6 @@ Android系统会在适当的时机触发GC操作，一旦进行GC操作，就会
 
 Android中的垃圾回收机制并不能防止内存泄漏的出现导致内存泄漏最主要的原因就是某些长存对象持有了一些其它应该被回收的对象的引用，导致垃圾回收器无法去回收掉这些对象，也就是出现内存泄漏了。比如说像Activity这样的系统组件，它又会包含很多的控件甚至是图片，如果它无法被垃圾回收器回收掉的话，那就算是比较严重的内存泄漏情况了。 举个例子，在MainActivity中定义一个内部类，实例化内部类对象，在内部类新建一个线程执行死循环，会导致内部类资源无法释放，MainActivity的控件和资源无法释放，导致OOM，可借助一系列工具，比如LeakCanary。
 
-### 14.高性能编码优化
-
-都是一些微优化，在性能方面看不出有什么显著的提升的。使用合适的算法和数据结构是优化程序性能的最主要手段。
-
 ### 15.避免创建不必要的对象
 
 不必要的对象我们应该避免创建：
@@ -88,19 +182,6 @@ Android中的垃圾回收机制并不能防止内存泄漏的出现导致内存�
 ### 16.静态优于抽象
 
 如果你并不需要访问一个对系那个中的某些字段，只是想调用它的某些方法来去完成一项通用的功能，那么可以将这个方法设置成静态方法，调用速度提升15%-20%，同时也不用为了调用这个方法去专门创建对象了，也不用担心调用这个方法后是否会改变对象的状态(静态方法无法访问非静态字段)。
-
-### 17.对常量使用static final修饰符
-
-static int intVal = 42;  
-static String strVal = "Hello, world!";  
-编译器会为上面的代码生成一个初始方法，称为方法，该方法会在定义类第一次被使用的时候调用。这个方法会将42的值赋值到intVal当中，从字符串常量表中提取一个引用赋值到strVal上。当赋值完成后，我们就可以通过字段搜寻的方式去访问具体的值了。
-
-### 18.final进行优化:
-
-static final int intVal = 42;  
-static final String strVal = "Hello, world!";  
-这样，定义类就不需要方法了，因为所有的常量都会在dex文件的初始化器当中进行初始化。当我们调用intVal时可以直接指向42的值，而调用strVal会用一种相对轻量级的字符串常量方式，而不是字段搜寻的方式。
-这种优化方式只对基本数据类型以及String类型的常量有效，对于其他数据类型的常量是无效的。
 
 ### 19.使用增强型for循环语法
 
@@ -139,34 +220,6 @@ zero()最慢，每次都要计算mArray的长度，one()相对快得多，two()�
 
 面向对象中封装的思想是不要把类内部的字段暴露给外部，而是提供特定的方法来允许外部操作相应类的内部字段。但在Android中，字段搜寻比方法调用效率高得多，我们直接访问某个字段可能要比通过getters方法来去访问这个字段快3到7倍。但是编写代码还是要按照面向对象思维的，我们应该在能优化的地方进行优化，比如避免在内部调用getters/setters方法。
 
-### 22.布局优化技巧
-
-(1)重用布局文件
-标签可以允许在一个布局当中引入另一个布局，那么比如说我们程序的所有界面都有一个公共的部分，这个时候最好的做法就是将这个公共的部分提取到一个独立的布局中，然后每个界面的布局文件当中来引用这个公共的布局。
-注意如果我们要在标签中覆写layout属性，必须要将layout_width和layout_height这两个属性也进行覆写，否则覆写效果将不会生效。
-标签是作为标签的一种辅助扩展来使用的，它的主要作用是为了防止在引用布局文件时引用文件时产生多余的布局嵌套。布局嵌套越多，解析起来就越耗时，性能就越差。因此编写布局文件时应该让嵌套的层数越少越好。举例：比如在LinearLayout里边使用一个布局。里边又有一个LinearLayout，那么其实就存在了多余的布局嵌套，使用merge可以解决这个问题。
-(2)仅在需要时才加载布局
-某个布局当中的元素不是一起显示出来的，普通情况下只显示部分常用的元素，而那些不常用的元素只有在用户进行特定操作时才会显示出来。
-举例：填信息时不是需要全部填的，有一个添加更多字段的选项，当用户需要添加其他信息的时候，才将另外的元素显示到界面上。用VISIBLE性能表现一般，可以用ViewStub。ViewStub也是View的一种，但是没有大小，没有绘制功能，也不参与布局，资源消耗非常低，可以认为完全不影响性能。
-
-    <ViewStub   
-        android:id="@+id/view_stub"  
-        android:layout="@layout/profile_extra"  
-        android:layout_width="match_parent"  
-        android:layout_height="wrap_content"  />
-
-    public void onMoreClick() {  
-        ViewStub viewStub = (ViewStub) findViewById(R.id.view_stub);  
-        if (viewStub != null) {  
-            View inflatedView = viewStub.inflate();  
-            editExtra1 = (EditText) inflatedView.findViewById(R.id.edit_extra1);  
-            editExtra2 = (EditText) inflatedView.findViewById(R.id.edit_extra2);  
-            editExtra3 = (EditText) inflatedView.findViewById(R.id.edit_extra3);  
-        }  
-    }
-
-注意ViewStub所加载的布局是不可以使用标签的，因此这有可能导致加载出来出来的布局存在着多余的嵌套结构。
-
 ### 23.Java代码的优化原则
 
 (1)使用静态工厂方法
@@ -197,11 +250,6 @@ public class Person{
 如果类实现了接口，在定义类变量的时候应尽量使用接口，而不是直接使用类。比如ArrayList实现了List接口，那么在定义ArrayList时尽量使用下面的形式：
 List<String> list = new ArrayList<>();
 它的好处是定义变量会更加灵活，可以改变前面的类的形式，比如改用LinkedList亦可。
-
-### 24.避免ANR
-
-ANR就是指Application Not Responding，就是程序长时间没有反应的问题。
-解决方法是在主线程当中创建子线程来解决费时的操作。然后将执行完毕的结果使用Message发送到Handler即可。
 
 ### 25.常用的程序性能测试方法
 
@@ -245,9 +293,7 @@ public static int getDefaultPageSize() {
 val bis =  BufferedInputStream(FileInputStream(filePath))
 val bitmap = BitmapFactory.decodeStream(bis,null,ops)
 
-### SparseArray 与 ArrayMap
 
-SparseArray 设计用来替换 HashMap，因为当想构建基于数值类型到某个类的映射关系的时候， HashMap 的键值对的键必须是数值类型的包装类，此时，普通的数值类型会被自动装箱，因此性能上会有损失。
 
 
 
