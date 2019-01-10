@@ -1,4 +1,4 @@
-# ANR 的原因和解决方案
+# Android 性能优化 - ANR 的原因和解决方案
 
 ## 1、出现 ANR 的情况
 
@@ -162,11 +162,11 @@ constexpr nsecs_t DEFAULT_INPUT_DISPATCHING_TIMEOUT = 5000 * 1000000LL; // 5 sec
 
 TraceView 工具的使用可以参考这篇文章：[《Android 性能分析之TraceView使用(应用耗时分析)》](https://blog.csdn.net/android_jianbo/article/details/76608558)
 
-使用 TraceView 来通过耗时方法调用的信息定位耗时操作的位置。
+这种定位 ANR 的思路是：**使用 TraceView 来通过耗时方法调用的信息定位耗时操作的位置**。
 
 资料：
 
-- [Android Developer Website](https://developer.android.com/topic/performance/vitals/anr)
+- [《ANR 官方文档》](https://developer.android.com/topic/performance/vitals/anr)
 - [《Android 性能分析之TraceView使用(应用耗时分析)》](https://blog.csdn.net/android_jianbo/article/details/76608558)
 
 ### 3. 常见的 ANR 场景
@@ -179,8 +179,10 @@ TraceView 工具的使用可以参考这篇文章：[《Android 性能分析之T
 
 ### 4. 避免 ANR 的方法
 
-1. UI线程尽量只做跟UI相关的工作
-2. 耗时的工作 (比如数据库操作，I/O，网络操作等)，采用单独的工作线程处理
-3. 用 Handler 来处理 UI 线程和工作线程的交互
+1. UI 线程尽量只做跟 UI 相关的工作；
+2. 耗时的工作 (比如数据库操作，I/O，网络操作等)，采用单独的工作线程处理；
+3. 用 Handler 来处理 UI 线程和工作线程的交互；
+4. 使用 RxJava 等来处理异步消息。
 
+总之，一个原则就是：**不在主线程做耗时操作**。
 

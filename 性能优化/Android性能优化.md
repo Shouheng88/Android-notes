@@ -1,66 +1,5 @@
 # Android 性能优化：打造高性能 App
 
-## 1、布局优化
-
-### 1.1 合理选择 ViewGroup
-
-在选择使用 Android 中的布局方式的时候应该遵循：**尽量少使用性能比较低的容器控件,比如 RelativeLayout，但如果使用 RelativeLayout 可以降低布局的层次的时候可以考虑使用**。
-
-Android 中的控件是树状的，降低树的高度可以提升布局性能。RelativeLayout 的布局比 FrameLayout、LinearLayout 等简单，因而可以减少计算过程，提升程序性能。
-
-### 1.2 使用 `<include>` 标签复用布局
-
-**多个地方共用的布局可以使用 `<include>` 标签在各个布局中复用**
-
-```xml
-   <include android:id="@+id/bar_layout" layout="@layout/layout_toolbar"/>
-```
-
-### 1.3 使用 `<merge>` 标签
-
-**可以通过使用 `<merge>` 来降低布局的层次**。 `<merge>` 标签通常与 `<include>` 标签一起使用， `<merge>` 作为可以复用的布局的根控件。然后使用 `<include>` 标签引用该布局。
-
-```xml
-    <!--布局1-->
-    <RelativeLayout
-        android:layout_width="match_parent"
-        android:layout_height="match_parent">
-        <include android:id="@+id/bar_layout" layout="@layout/layout_toolbar"/>
-    </RelativeLayout>
-    <!--布局2-->
-    <merge>
-        <Button
-            android:layout_width="match_parent"
-            android:layout_height="match_parent">
-    </merge>
-```
-
-上面的布局方式中布局 2 被布局 1 引用之后其 Button 的控件父容器将会是布局 1 中的 RelativeLayout. 如果我们不使用 `<merge>` 标签而是一个单独的父容器的话就会多一层布局。
-
-### 1.4 使用 `<ViewStub>` 标签
-
-**`<ViewStub>` 标签可以用来在程序运行的时候决定加载哪个布局，而不是一次性全部加载**。
-
-```xml
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content">
-        <ViewStub
-            android:id="@+id/stub"
-            android:inflatedId="@+id/inflatedStart"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout="@layout/start" />
-    </LinearLayout>
-```
-
-然后我们可以使用下面两种方式将布局加载进来：
-
-```java
-((ViewStub) findViewById(R.id.stub)).setVisibility(View.VISIBILITY); // 方式 1
-View v = ((ViewStub) findViewById(R.id.stub)).inflate(); // 方式 2
-```
-
 ## 2、绘制优化
 
 ### 2.1 onDraw() 方法
@@ -86,10 +25,6 @@ Square 公司开源的用于检测内存泄漏的库，Github 地址：[LeakCana
 从属性动画延申到**开线程并且线程中引用到了 Context 的情景**。因为 Context 需要被销毁的时候，线程或者动画可能还没有执行完毕，因而导致内存泄漏。
 
 解决方案：弱引用或者在合适的位置和时机释放引用。
-
-## 4、ANR
-
-详情参考文章：[《ANR 的原因和解决方案》](ANR.md)
 
 ## 其他
 
