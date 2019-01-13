@@ -169,7 +169,13 @@ TraceView 工具的使用可以参考这篇文章：[《Android 性能分析之T
 - [《ANR 官方文档》](https://developer.android.com/topic/performance/vitals/anr)
 - [《Android 性能分析之TraceView使用(应用耗时分析)》](https://blog.csdn.net/android_jianbo/article/details/76608558)
 
-### 3. 常见的 ANR 场景
+### 3. 使用开源项目 ANR-WatchDog 来检測 ANR
+
+项目地址是 [Github-ANR-WatchDog](https://github.com/SalomonBrys/ANR-WatchDog)
+
+该项目的实现原理：创建一个检测线程，该线程不断往 UI 线程 post 一个任务，然后睡眠固定时间，等该线程又一次起来后检測之前 post 的任务是否运行了，假设任务未被运行，则生成 ANRError，并终止进程。
+
+### 4. 常见的 ANR 场景
 
 1. I/O 阻塞
 2. 网络阻塞
@@ -177,7 +183,7 @@ TraceView 工具的使用可以参考这篇文章：[《Android 性能分析之T
 4. 由于响应式编程等导致的方法死循环
 5. 由于某个业务逻辑执行的时间太长
 
-### 4. 避免 ANR 的方法
+### 5. 避免 ANR 的方法
 
 1. UI 线程尽量只做跟 UI 相关的工作；
 2. 耗时的工作 (比如数据库操作，I/O，网络操作等)，采用单独的工作线程处理；

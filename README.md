@@ -12,6 +12,11 @@
 - [注解在 Android 中的应用](注解和依赖注入/注解在Android中的应用.md)
 - [Android 应用架构设计探索：MVC、MVP、MVVM和组件化](结构设计/探索Android架构设计.md)
 - 性能优化
+    - [ANR](性能优化/Android性能优化-ANR.md)
+    - [内存优化](性能优化/Android性能优化-内存优化.md)
+    - [布局优化](性能优化/Android性能优化-布局优化.md)
+    - [进程保活](性能优化/Android进程保活.md)
+    - [启动优化](性能优化/Android性能优化-启动优化.md)
 
 ### 系统源码
 
