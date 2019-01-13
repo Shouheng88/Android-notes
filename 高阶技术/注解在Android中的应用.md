@@ -12,6 +12,7 @@ Java 中的注解分成标准注解和元注解。标准注解是 Java 为我们
 
 不过，首先我们还是先看一下一个基本的注解的定义的规范。下面我们自定义了一个名为`UseCase`的注解，可以看出我们用到了上面提及的几种元注解：
 
+```java
 	@Documented
 	@Retention(RetentionPolicy.RUNTIME)
 	@Target(value={METHOD, FIELD})
@@ -19,6 +20,7 @@ Java 中的注解分成标准注解和元注解。标准注解是 Java 为我们
         public int id();
         public String description() default "default value";
 	}
+```
 
 这是一个普通的注解的定义。从上面我们也可以总结出，在定义注解的时候，有以下几个地方需要注意：
 
@@ -79,6 +81,7 @@ Java 中的注解分成标准注解和元注解。标准注解是 Java 为我们
 
 这里我们先定义两个注解，应用于字段的`@Column`注解和应用于方法`@Important`注解：
 
+```java
     @Target(value = {ElementType.FIELD})
     @Retention(RetentionPolicy.RUNTIME)
     public @interface Column {
@@ -90,9 +93,11 @@ Java 中的注解分成标准注解和元注解。标准注解是 Java 为我们
     public @interface WrappedMethod {
 
     }
+```
 
 然后我们定义了一个Person类，并使用注解为其中的部分方法和字段添加注解：
 
+```java
     private static class Person {
 
         @Column(name = "id")
@@ -115,9 +120,11 @@ Java 中的注解分成标准注解和元注解。标准注解是 Java 为我们
             return "Nothing";
         }
     }
+```
 
 然后，我们使用Person类来获取该类的字段和方法的信息，并输出具有注解的部分：
 
+```java
     public static void main(String...args) {
         Class<?> c = Person.class;
         Method[] methods = c.getDeclaredMethods();
@@ -135,6 +142,7 @@ Java 中的注解分成标准注解和元注解。标准注解是 Java 为我们
             }
         }
     }
+```
 
 输出结果：
 
@@ -152,7 +160,9 @@ Java 中的注解分成标准注解和元注解。标准注解是 Java 为我们
 
 也许你之前已经使用过 ButterKnife 这样的注入框架，不知道你是否记得在 Gradle 中引用它的时候加入了下面这行依赖：
 
+```groovy
     annotationProcessor 'com.jakewharton:butterknife-compiler:8.8.1'
+```
 
 这里的 annotationProcessor 就是我们这里要讲的**注解处理**。本质上它会在编译的时候，在你调用`ButterKnife.bind(this);`方法的那个类所在的包下面生成一些类，当调用`ButterKnife.bind(this);`的时候实际上就完成了为使用注解的方法和控件绑定的过程。也就是，本质上还是调用了`findViewById()`，只是这个过程被隐藏了，不用你来完成了，仅此而已。
 
@@ -173,7 +183,9 @@ Javapoet 是一个用来生成`.java`文件的 Java API，由 Square 开发，�
 
 另一个我们需要特别说明的地方是，继承`AbstractProcessor`并实现了我们自己的处理器之后还要对它进行注册才能使用。一种做法是在与`java`相同的目录下面创建一个`resources`文件夹，并在其中创建`META-INF/service`文件夹，然后在其中创建一个名为`javax.annotation.processing.Processor`的文件，并在其中写上我们的处理器的完整路径。另一种做法是使用谷歌的`@AutoService`注解，你只需要在自己的处理器上面加上`@AutoService(Processor.class)`一行代码即可。当然，前提是你需要在自己的项目中引入依赖：
 
+```groovy
     compile 'com.google.auto.service:auto-service:1.0-rc2'
+```
 
 按照后面的这种方式一样会在目录下面生成上面的那个文件，只是这个过程不需要我们来操作了。你可以通过查看buidl出的文件来找到生成的文件。
 
@@ -185,6 +197,7 @@ Javapoet 是一个用来生成`.java`文件的 Java API，由 Square 开发，�
 
 这里的`me.shouheng.libraries`是我们应用 MyKnife 的包，这里我们在它下面生成了一个名为`MyKnifeActivity$$Injector`的类，它的定义如下：
 
+```java
     public class MyKnifeActivity$$Injector implements Injector<MyKnifeActivity> {
       @Override
       public void inject(final MyKnifeActivity host, Object source, Finder finder) {
@@ -199,11 +212,13 @@ Javapoet 是一个用来生成`.java`文件的 Java API，由 Square 开发，�
         finder.findView(source, 2131230762).setOnClickListener(listener);
       }
     }
+```
 
 因为我们应用`MyKnife`的类是`MyKnifeActivity`，所以这里就生成了名为`MyKnifeActivity$$Injector`的类。通过上面的代码，可以看出它实际上调用了`Finder`的方法来为我们的控件`textView`赋值，然后使用控件的`setOnClickListener()`方法为点击事件赋值。这里的`Finder`是我们封装的一个对象，用来从指定的源中获取控件的类，本质上还是调用了指定源的`findViewById()`方法。
 
 然后，与 ButterKnife 类似的是，在使用我们的工具的时候，也需要在 Activity 的`onCreate()`中调用`bind()`方法。这里我们看下这个方法做了什么操作：
 
+```java
     public static void bind(Object host, Object source, Finder finder) {
         String className = host.getClass().getName();
         try {
@@ -222,6 +237,7 @@ Javapoet 是一个用来生成`.java`文件的 Java API，由 Square 开发，�
             e.printStackTrace();
         }
     }
+```
 
 从上面的代码中可以看出，调用`bind()`方法的时候会从`FINDER_MAPPER`尝试获取指定`类名$$Injector`的文件。所以，如果说我们应用`bind()`的类是`MyKnifeActivity`，那么这里获取到的类将会是`MyKnifeActivity$$Injector`。然后，当我们调用`inject`方法的时候就执行了我们上面的注入操作，来完成对控件和点击事件的赋值。这里的`FINDER_MAPPER`是一个哈希表，用来缓存指定的`Injector`的。所以，从上面也可以看出，这里进行值绑定的时候使用了反射，所以，在应用框架的时候还需要对混淆进行处理。
 
@@ -231,6 +247,7 @@ OK，看完了程序的最终结果，我们来看一下如何生成上面的那
 
 首先，我们需要定义注解用来提供给用户进行事件和控件的绑定，
 
+```java
     @Target(ElementType.FIELD)
     @Retention(RetentionPolicy.CLASS)
     public @interface BindView {
@@ -242,11 +259,13 @@ OK，看完了程序的最终结果，我们来看一下如何生成上面的那
     public @interface OnClick {
         int[] ids();
     }
+```
 
 如上面的代码所示，可以看出我们分别用了`ElementType.FIELD`和`ElementType.METHOD`指定它们是应用于字段和方法的，然后用了`RetentionPolicy.CLASS`标明它们不会被保留到程序运行时。
 
 然后，我们需要定义`MyKnife`，它提供了一个`bind()`方法，其定义如下：
 
+```java
     public static void bind(Object host, Object source, Finder finder) {
         String className = host.getClass().getName();
         try {
@@ -265,7 +284,8 @@ OK，看完了程序的最终结果，我们来看一下如何生成上面的那
             e.printStackTrace();
         }
     }
-  
+```
+
 这里的三个参数的含义分别是：`host`是调用绑定方法的类，比如 Activity 等；`source`是从用来获取绑定的值的数据源，一般理解是从`source`中获取控件赋值给`host`中的字段，通常两者是相同的；最后一个参数`finder`是一个接口，是获取数据的方法的一个封装，有两默认的实现，一个是`ActivityFinder`，一个是`ViewFinder`，分别用来从 Activity 和 View 中查找控件。
 
 我们之前已经讲过`bind()`方法的作用，即使用反射根据类名来获取一个`Injector`，然后调用它的`inject()`方法进行注入。这里的`Injector`是一个接口，我们不会写代码去实现它，而是在编译的时候让编译器直接生成它的实现类。
@@ -276,6 +296,7 @@ OK，看完了程序的最终结果，我们来看一下如何生成上面的那
 
 与生成文件和获取注解的对象信息相关的几个字段都是从 AbstractProcessor 中获取的。如下面的代码所示，我们可以从 AbstractProcessor 的`init()`方法的`ProcessingEnvironment`中获取到`Elements`、`Filer`和`Messager`。它们的作用分别是：`Elements`类似于一个工具类，用来从`Element`中获取注解对象的信息；`Filer`用来支持通过注释处理器创建新文件；`Messager`提供注释处理器用来报告错误消息、警告和其他通知的方式。
 
+```java
     @Override
     public synchronized void init(ProcessingEnvironment processingEnvironment) {
         super.init(processingEnvironment);
@@ -283,9 +304,11 @@ OK，看完了程序的最终结果，我们来看一下如何生成上面的那
         messager = processingEnvironment.getMessager();
         filer = processingEnvironment.getFiler();
     }
+```
 
 然后在 AbstractProcessor 的`process()`方法中的`RoundEnvironment`参数中，我们又可以获取到指定注解对应的`Element`信息。代码如下所示：
 
+```java
     private Map<String, AnnotatedClass> map = new HashMap<>();
 
     @Override
@@ -339,11 +362,13 @@ OK，看完了程序的最终结果，我们来看一下如何生成上面的那
         }
         return annotatedClass;
     }
+```
 
 上面的代码的逻辑是，在调用`process()`方法的时候，会根据传入的`RoundEnvironment`分别处理两种注解。两个注解的相关信息都会被解析成`List<BindViewField>`和`List<OnClickMethod>`，然后把使用注解的整个类的信息统一放置在`AnnotatedClass`中。为了提升程序的效率，这里用了缓存来存储类信息。最后，我们调用了`annotatedClass.generateFinder()`获取一个JavaFile，并调用它的`writeTo(filer)`方法生成类文件。
 
 上面的代码重点在于解析使用注解的类的信息，至于如何根据类信息生成类文件，我们还需要看下`AnnotatedClass`的`generateFinder()`方法，其代码如下所示。这里我们用了之前提到的 Javapoet 来帮助我们生成类文件：
 
+```java
     public JavaFile generateFinder() {
         // 这里用来定义inject方法的签名
         MethodSpec.Builder builder = MethodSpec.methodBuilder("inject")
@@ -392,6 +417,7 @@ OK，看完了程序的最终结果，我们来看一下如何生成上面的那
                 .build();
         return JavaFile.builder(packageName, finderClass).build();
     }
+```
 
 上面就是我们用来最终生成类文件的方法，这里用了 Javapoet ，如果对它不是很了解可以到 Github 上面了解一下它的用法。
 
@@ -401,14 +427,17 @@ OK，看完了程序的最终结果，我们来看一下如何生成上面的那
 
 使用我们定义的 MyKnife ，我们只需要在 Gradle 里面引入我们的包即可：
 
+```groovy
     implementation project(':knife-api')
     implementation project(':knife-annotation')
     annotationProcessor project(':knife-compiler')
+```
 
 也许你在有的地方看到过要使用`android-apt`引入注解处理器，其实这里的`annotationProcessor`与之作用是一样的。这里推荐使用`annotationProcessor`，因为它更加简洁，不需要额外的配置，也是官方推荐的使用方式。
 
 然后，我们只需要在代码中使用它们就可以了：
 
+```java
 public class MyKnifeActivity extends CommonActivity<ActivityMyKnifeBinding> {
 
     @BindView(id = R.id.tv)
@@ -430,6 +459,7 @@ public class MyKnifeActivity extends CommonActivity<ActivityMyKnifeBinding> {
         textView.setText("This is MyKnife demo!");
     }
 }
+```
 
 这里有几个地方需要注意：
 
