@@ -56,6 +56,10 @@ Systrace 能够追踪关键系统调用的耗时情况，如系统的 IO 操作�
     }
 ```
 
+#### 方式 6：录屏
+
+录屏方式收集到的时间，更接近于用户的真实体感。可以在录屏之后按帧来进行统计分析。
+
 ## 2、启动优化
 
 ### 2.1 一般解决办法
@@ -88,19 +92,43 @@ Systrace 能够追踪关键系统调用的耗时情况，如系统的 IO 操作�
 
 这种实现方式可以参考我的开源项目 [MarkNote](https://github.com/Shouheng88/MarkNote) 的实现。
 
-#### 2.1.5 使用 BlockCanary 检测卡顿
+### 2.2 其他借鉴办法
+
+#### 2.2.1 使用 BlockCanary 检测卡顿
 
 BlockCanary 是一个开源项目，类似于 LeakCanary （很多地方也借鉴了 LeakCanary 的东西），主要用来检测程序中的卡顿，项目地址是 [Github-BlockCanary](https://github.com/markzhai/AndroidPerformanceMonitor). 它的原理是对 Looper 中的 `loop()` 方法打处的日志进行处理，通过一个自定义的日志输出 Printer 监听方法执行的开始和结束。可以通过该项目作者的文章来了解这个项目：
 
 [BlockCanary — 轻松找出Android App界面卡顿元凶](https://www.jianshu.com/p/cd7fc77405ac)
 
-#### 2.1.6 GC 优化
+#### 2.2.2 GC 优化
 
 GC 优化的思想就是减少垃圾回收的时间间隔，所以在启动的过程中不要频繁创建对象，特别是大对象，避免进行大量的字符串操作，特别是序列化跟反序列化过程。一些频繁创建的对象，例如网络库和图片库中的 Byte 数组、Buffer 可以复用。如果一些模块实在需要频繁创建对象，可以考虑移到 Native 实现。
 
+#### 2.2.3 类重排
+
+如果我们的代码在打包的时候被放进了不同的 dex 里面，当启动的时候，如果需要用到的类分散在各个 dex 里面，那么系统要花额外的时间到各个 dex 里加载类。因此，我们可以通过类重排调整类在 Dex 中的排列顺序，把启动时用到的类放进主 dex 里。
+
+目前可以使用 [ReDex](https://github.com/facebook/redex) 的 [Interdex](https://github.com/facebook/redex/blob/master/docs/Interdex.md) 调整类在 Dex 中的排列顺序。
+
+可以参考下面这篇文章来了解类重拍在手 Q 中的应用以及他们遇到的各种问题：
+
+[Redex 初探与 Interdex：Andorid 冷启动优化](https://mp.weixin.qq.com/s/Bf41Kez_OLZTyty4EondHA?)
+
+#### 2.2.4 资源文件重排
+
+对应于类重排，还有资源的重排。可以参考下阿里的资源重排优化方案：
+
+[支付宝 App 构建优化解析：通过安装包重排布优化 Android 端启动性能](https://mp.weixin.qq.com/s/79tAFx6zi3JRG-ewoapIVQ)
+
+这种方案的原理时先通过测试找出程序启动过程中需要加载的资源，然后再打包的时候通过修改 7z 压缩工具将上述热点资源放在一起。这样，在系统进行资源加载的时候，这些资源将要用到的资源会一起被加载进程内存当中并缓存，减少了 IO 的次数，同时不需要从磁盘读取文件，来提高应用启动的速度。
+
+#### 2.2.5 类的加载
+
+通过 Hook 来去掉应用启动过程中的 verify 来减少启动过程中的耗时。但是这种方式存在虚拟机兼容的问题，在 ART 虚拟机上面进行 Hook 需要兼容几个版本。
 
 
 参考资料：
 
 - [App startup time](https://developer.android.com/topic/performance/vitals/launch-time)
 - [Android性能优化（一）之启动加速35%](https://www.jianshu.com/p/f5514b1a826c)
+- [爱奇艺技术分享：爱奇艺Android客户端启动速度优化实践总结](https://www.jianshu.com/p/bd3930316c8d)
