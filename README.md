@@ -10,7 +10,9 @@
     - [Android 基础回顾：Service 基础](四大组件/Service.md)
     - [Android 基础回顾：Broadcast 基础](四大组件/Broadcast.md)
 - [注解在 Android 中的应用](注解和依赖注入/注解在Android中的应用.md)
-- [Android 应用架构设计探索：MVC、MVP、MVVM和组件化](结构设计/探索Android架构设计.md)
+- 架构设计
+    - [Android 应用架构设计探索：MVC、MVP、MVVM和组件化](结构设计/探索Android架构设计.md)
+    - [浅谈 ViewModel 的生命周期控制](高阶技术/浅谈ViewModel生命周期控制.md)
 - 性能优化
     - [ANR](性能优化/Android性能优化-ANR.md)
     - [内存优化](性能优化/Android性能优化-内存优化.md)
