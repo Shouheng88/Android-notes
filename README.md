@@ -48,6 +48,7 @@
     - [Glide 系列-1：预热、Glide 的常用配置方式及其原理](图片加载/Glide系列：Glide的配置和使用方式.md)
     - [Glide 系列-2：主流程源码分析](图片加载/Glide系列：Glide主流程源码分析.md)
     - [Glide 系列-3：Glide 缓存的实现原理](图片加载/Glide系列：Glide的缓存的实现原理.md)
+- -[Dagger 从集成到源码带你理解依赖注入框架](高阶技术/Dagger从集成到源码.md)
 
 ### Java 相关
 
