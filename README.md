@@ -22,6 +22,7 @@
 
 ### 系统源码
 
+- [Android 系统启动流程源码分析](系统架构/Android系统启动过程.md)
 - 消息机制
     - [Android 消息机制：Handler、MessageQueue 和 Looper](消息机制/线程通信：Handler、MessageQueue和Looper.md.md)
     - [Android IPC 机制：Binder 机制](消息机制/跨进程通信：Binder机制.md) (编辑中)
@@ -50,7 +51,7 @@
     - [Glide 系列-1：预热、Glide 的常用配置方式及其原理](图片加载/Glide系列：Glide的配置和使用方式.md)
     - [Glide 系列-2：主流程源码分析](图片加载/Glide系列：Glide主流程源码分析.md)
     - [Glide 系列-3：Glide 缓存的实现原理](图片加载/Glide系列：Glide的缓存的实现原理.md)
-- -[Dagger 从集成到源码带你理解依赖注入框架](高阶技术/Dagger从集成到源码.md)
+- [Dagger 从集成到源码带你理解依赖注入框架](高阶技术/Dagger从集成到源码.md)
 
 ### Java 相关
 
