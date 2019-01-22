@@ -466,10 +466,20 @@ void AndroidRuntime::start(const char* className, const Vector<String8>& options
 `nativeZygoteInit()` 是一个 native 方法，用来启动 Binder 线程池。它对应的 native 方法定义在 `AndroidRuntime.cpp` 中。这里的 `gCurRuntime` 是 AppRumtime，定义在 `app_main.cpp` 中。
 
 ```c++
-// platform/frameworks/base/cmds/app_process/app_main.cpp
+// platform/frameworks/base/base/core/jni/AndroidRuntime.cppp
 static void com_android_internal_os_ZygoteInit_nativeZygoteInit(JNIEnv* env, jobject clazz)
 {
     gCurRuntime->onZygoteInit();
+}
+
+// latform/frameworks/base/cmds/app_process/app_main.cpp
+class AppRuntime : public AndroidRuntime
+{
+    virtual void onZygoteInit()
+    {
+        sp<ProcessState> proc = ProcessState::self();
+        proc->startThreadPool();
+    }
 }
 ```
 
