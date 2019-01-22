@@ -52,13 +52,13 @@ Android 是基于 Linux 的，Linux 本身已经具有了许多的 IPC 机制，
 
 所以，我们可以使用上面的这张图来描述整个 Binder 模型：首先，在系统会将应用程序所需的各种服务通过 Binder 驱动注册到系统中（ServiceManager 先被注册，之后其他服务再通过 ServiceManager 进行注册），然后当某个客户端需要使用某个服务的时候，也需要与 Binder 驱动进行交互，Binder 会通过服务的名称到 ServiceManager 中查找指定的服务，并将其返回给客户端程序进行使用。
 
-## 3、Binder 的原理
+## 4、Binder 的原理
 
 上面我们梳理了 Binder 的模型，以及为什么系统设计一套通信机制的原因。那么你是否也好奇神乎其神的 Binder 究竟是怎么实现的呢？这里我们来梳理下 Binder 内部实现的原理。
 
 首先，Binder 的实现过程是非常复杂的，在《Android 系统源码情景分析》一书中有 200 页的篇幅都在讲 Binder. 在这里我们不算详细地讲解它的具体的实现原理，我们只对其中部分内容做简单的分析，并且不希望涉及大量的代码。
 
-### 3.1 inder 相关的系统源码的结构
+### 4.1 inder 相关的系统源码的结构
 
 然后，我们需要介绍下 Binder 相关的核心类在源码中的位置，
 
@@ -96,7 +96,7 @@ Android 是基于 Linux 的，Linux 本身已经具有了许多的 IPC 机制，
                          |--uapi-binder.h
 ```
 
-### 3.2 Binder 实现过程中至关重要的几个函数
+### 4.2 Binder 实现过程中至关重要的几个函数
 
 当我们查看 binder.c 的源码的时候，或者查看与 Binder 相关的操作的时候，经常看到几个操作 ioctl, mmap 和 open. 那么这几个操作符是什么含义呢？
 
@@ -135,11 +135,12 @@ int munmap(void* start,size_t length);
 
 成功执行时，`mmap()` 返回被映射区的指针，`munmap()` 返回0。失败时，`mmap()` 返回 MAP_FAILED[其值为(void *)-1]，`munmap()` 返回 -1.
 
-### 3.3 ServiceManger 启动
+### 4.3 ServiceManger 启动
 
 Binder 中的 ServiceManager 并非 Java 层的 ServiceManager，而是 Native 层的。启动 ServiceManager 由 init 进程通过解析 init.rc 文件而创建。启动的时候会找到上述源码目录中的 service_manager.c 文件中，并调用它的 main() 方法，
 
 ```c
+// platform/framework/native/cmds/servicemanager.c
 int main(int argc, char** argv)
 {
     struct binder_state *bs;
@@ -167,6 +168,7 @@ int main(int argc, char** argv)
 ServcieManager 启动的过程就是上面三个步骤，无需过多说明。下面我们给出这三个方法具体实现的。在下面的代码中你将看到我们之前介绍的三个函数的实际应用。相应有了前面的铺垫之后你理解起来不成问题 :)
 
 ```c
+// platform/framework/native/cmds/servicemanager.c
 struct binder_state *binder_open(const char* driver, size_t mapsize)
 {
     struct binder_state *bs;
@@ -204,6 +206,7 @@ fail_open:
 在上面的代码中，先使用 `open()` 函数打开设备驱动（就是一个打开文件的操作），然后使用 `ioctl()` 函数向上面的设备驱动发送指令以获取设备信息。最后，通过 `mmap()` 函数实现内存映射，并将上述的文件描述符传入。这里的 binder_state 是一个结构体，定义如下。其实就是用来描述 binder 的状态。从上面我们也能看到它的三个变量的赋值过程。
 
 ```c
+// platform/framework/native/cmds/servicemanager.c
 struct binder_state
 {
     int fd;
@@ -217,6 +220,7 @@ struct binder_state
 打开了驱动之后，注册为上下文的方法更加简单，
 
 ```c
+// platform/framework/native/cmds/servicemanager.c
 int binder_become_context_manager(struct binder_state *bs)
 {
     return ioctl(bs->fd, BINDER_SET_CONTEXT_MGR, 0);
@@ -228,6 +232,7 @@ int binder_become_context_manager(struct binder_state *bs)
 最后就是启动 Binder 循环了。它的逻辑也没有想象中得复杂，就是启动了 for 循环，
 
 ```c
+// platform/framework/native/cmds/servicemanager.c
 void binder_loop(struct binder_state *bs, binder_handler func)
 {
     int res;
@@ -267,9 +272,244 @@ void binder_loop(struct binder_state *bs, binder_handler func)
 
 当然，我们上面分析的是 ServiceManager 中向 Binder 写命令的过程，而驱动如何解析呢？当然是在驱动中实现了，详细的过程可以查看 Binder 驱动部分的源码。
 
-### 3.4 Binder 的跨进程通信过程
+### 4.4 Binder 的跨进程通信过程
 
+下面我们以 AMS 作为例子来讲解下 Binder 跨进程通信的实现过程。首先，当我们调用 `startActivity()` 方法的时候，最终将会进入 ActivityManager 以获取 AMS，
 
+```java
+    // platform/framework/base/core/java/android/app/ActivityManager.java
+    final IBinder b = ServiceManager.getService(Context.ACTIVITY_SERVICE);
+    final IActivityManager am = IActivityManager.Stub.asInterface(b);
+    return am;
+```
+
+这里会使用 ServiceManger 来按名称查找 AMS，查找到 Binder 对象之后将其转换成 AMS 就可以使用了。之前，我们也说过用来查找 AMS 的 SeerviceManager 本身也是一种服务。所以，它这里的方法也是通过 Binder 来实现的。那么，我们就从这里的 `getService()` 方法入手。
+
+```java
+    // platform/framework/base/core/java/android/os/ServiceManager.java
+    public static IBinder getService(String name) {
+        try {
+            IBinder service = sCache.get(name);
+            if (service != null) {
+                return service;
+            } else {
+                return Binder.allowBlocking(rawGetService(name));
+            }
+        } catch (RemoteException e) { /* ... */ }
+        return null;
+    }
+```
+
+这里会先尝试从缓存当中取 Binder，取不到的话就从远程进行获取。这里使用 `rawGetService()` 方法来从远程获取 Binder，代码如下，
+
+```java
+    // platform/framework/base/core/java/android/os/ServiceManager.java
+    private static IBinder rawGetService(String name) throws RemoteException {
+        final IBinder binder = getIServiceManager().getService(name);
+        // ...		
+        return binder;
+    }
+
+    // platform/framework/base/core/java/android/os/ServiceManager.java
+    private static IServiceManager getIServiceManager() {
+        if (sServiceManager != null) {
+            return sServiceManager;
+        }
+        sServiceManager = ServiceManagerNative
+                .asInterface(Binder.allowBlocking(BinderInternal.getContextObject()));
+        return sServiceManager;
+    }
+```
+
+在 `rawGetService()` 方法中会使用 `ServiceManagerNative` 的 `getService()` 方法从远程获取 Binder. 这里的 ServiceManagerNative 本质上只是一个代理类，它实际的逻辑是由 `BinderInternal.getContextObject()` 返回的 Binder 实现的。
+
+也许你已经晕了，怎么那么多 Binder……我来说明下。当要查找 AMS 的时候实际上是一个跨进程的调用过程，也就是实际的查找的逻辑是在另一个进程实现，因此需要 Binder 来通信。而查找 AMS 的远程对象实际上就是我们上面所说的 ServiceManager (Native 层的而不是 Java 层的，Java 层的 ServiceManager 是一个代理类，是用来从远程获取服务的）。
+
+因此，按照上面的描述，`BinderInternal.getContextObject()` 返回的就应该是远程的 Binder 对象。于是方法进入 Native 层，
+
+```c++
+// platform/framework/base/core/jni/android_util_Binder.cpp
+static jobject android_os_BinderInternal_getContextObject(JNIEnv* env, jobject clazz)
+{
+    sp<IBinder> b = ProcessState::self()->getContextObject(NULL);
+    return javaObjectForIBinder(env, b);
+}
+```
+
+这里的 `ProcessState::self()` 是否熟悉呢？你是否还记得在上一篇文章中，我们介绍 Android 系统启动过程的时候介绍过它。我们曾经使用它来开启 Binder 的线程池。这里的 `self()` 方法其实是用来获取一个单例对象的。我们可以直接由 `getContextObject()` 进入 `getStrongProxyForHandle()` 方法。从下面的方法中我们可以看出，这里调用了 `BpBinder` 的 `create()` 方法创建了一个 BpBinder 实例并返回，也就是我们的 ServiceManager.
+
+```c++
+// plaftorm/framework/native/libs/binder/ProcessState.cpp
+sp<IBinder> ProcessState::getStrongProxyForHandle(int32_t handle)
+{
+    sp<IBinder> result;
+    AutoMutex _l(mLock);
+    handle_entry* e = lookupHandleLocked(handle);
+    if (e != nullptr) {
+        IBinder* b = e->binder;
+        if (b == nullptr || !e->refs->attemptIncWeak(this)) {
+            // ...
+			// 调用 BpBinder
+            b = BpBinder::create(handle);
+            e->binder = b;
+            if (b) e->refs = b->getWeakRefs();
+            result = b;
+        } else {
+            result.force_set(b);
+            e->refs->decWeak(this);
+        }
+    }
+```
+
+当我们拿到了 ServiceManager 的 Binder 之后就可以调用它的 `getService()` 方法来获取服务了，
+
+```java
+    // platform/framework/base/core/java/android/os/ServiceManagerNative.java
+    public IBinder getService(String name) throws RemoteException {
+        Parcel data = Parcel.obtain();
+        Parcel reply = Parcel.obtain();
+        data.writeInterfaceToken(IServiceManager.descriptor);
+        data.writeString(name);
+        mRemote.transact(GET_SERVICE_TRANSACTION, data, reply, 0);
+        IBinder binder = reply.readStrongBinder();
+        reply.recycle();
+        data.recycle();
+        return binder;
+    }
+```
+
+这里的 mRemote 就是之前返回的 BpBinder，这里调用它的 `transact()` 方法，并传入了一个方法标记 GET_SERVICE_TRANSACTION. 
+
+```c++
+// platform/framework/native/libs/binder/BpBinder.cpp
+status_t BpBinder::transact(uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
+{
+    if (mAlive) {
+        status_t status = IPCThreadState::self()->transact(mHandle, code, data, reply, flags);
+        if (status == DEAD_OBJECT) mAlive = 0;
+        return status;
+    }
+    return DEAD_OBJECT;
+}
+```
+
+显然这里会调用 IPCThreadState 的 `self()` 方法先获取一个单例的对象，然后调用它的 `transact()` 方法继续方法的执行。
+
+```c++
+// platform/framework/native/libs/binder/IPCThreadState.cpp
+status_t IPCThreadState::transact(int32_t handle, uint32_t code, 
+    const Parcel& data, Parcel* reply, uint32_t flags)
+{
+    status_t err;
+    // ...
+    err = writeTransactionData(BC_TRANSACTION, flags, handle, code, data, nullptr);
+    // ...
+    if ((flags & TF_ONE_WAY) == 0) { // OneWay 类型的调用，同步的
+        // ...
+		if (reply) {
+            // 等待相应
+            err = waitForResponse(reply);
+        } else {
+            Parcel fakeReply;
+            err = waitForResponse(&fakeReply);
+        }
+        IF_LOG_TRANSACTIONS() {
+            TextOutput::Bundle _b(alog);
+            if (reply) alog << indent << *reply << dedent << endl;
+            else alog << "(none requested)" << endl;
+        }
+    } else { // 异步的
+        err = waitForResponse(nullptr, nullptr);
+    }
+    return err;
+}
+```
+
+上面会调用 `writeTransactionData()` 方法用来将数据写入到 Parcel 中。然后将会进入 `waitForResponse()` 方法处理与 ServiceManager 交互的结果。而真实的交互发生的地方位于 `talkWithDriver()` 方法，
+
+```c++
+// platform/framework/native/libs/binder/IPCThreadState.cpp
+status_t IPCThreadState::talkWithDriver(bool doReceive)
+{
+    if (mProcess->mDriverFD <= 0) {
+        return -EBADF;
+    }
+
+    binder_write_read bwr;
+    const bool needRead = mIn.dataPosition() >= mIn.dataSize();
+    const size_t outAvail = (!doReceive || needRead) ? mOut.dataSize() : 0;
+
+    bwr.write_size = outAvail;
+    bwr.write_buffer = (uintptr_t)mOut.data();
+
+    if (doReceive && needRead) {
+        bwr.read_size = mIn.dataCapacity();
+        bwr.read_buffer = (uintptr_t)mIn.data();
+    } else {
+        bwr.read_size = 0;
+        bwr.read_buffer = 0;
+    }
+
+    if ((bwr.write_size == 0) && (bwr.read_size == 0)) return NO_ERROR;
+
+    bwr.write_consumed = 0;
+    bwr.read_consumed = 0;
+    status_t err;
+    do {
+        // 通过 ioctl 读写操作，与 Binder Driver 进行交互
+        if (ioctl(mProcess->mDriverFD, BINDER_WRITE_READ, &bwr) >= 0)
+            err = NO_ERROR;
+        else
+            err = -errno;
+        if (mProcess->mDriverFD <= 0) {
+            err = -EBADF;
+        }
+    } while (err == -EINTR);
+    // ...
+    return err;
+}
+```
+
+binder_write_read 结构体用来与 Binder 设备交换数据的结构, 通过 ioctl 与 mDriverFD 通信，是真正与 Binder 驱动进行数据读写交互的过程。先向service manager进程发送查询服务的请求(BR_TRANSACTION)。然后，service manager 会在之前开启的循环中监听到，并使用 `svcmgr_handler()` 方法进行处理。
+
+```c++
+// platform/framework/native/cmds/servicemanager.c
+int svcmgr_handler(struct binder_state *bs,
+                   struct binder_transaction_data *txn,
+                   struct binder_io *msg,
+                   struct binder_io *reply)
+{
+    // ...
+    switch(txn->code) {
+        case SVC_MGR_GET_SERVICE:
+        case SVC_MGR_CHECK_SERVICE:
+            s = bio_get_string16(msg, &len);
+            if (s == NULL) {
+                return -1;
+            }
+            handle = do_find_service(s, len, txn->sender_euid, txn->sender_pid);
+            if (!handle)
+                break;
+            bio_put_ref(reply, handle);
+            return 0;
+        case SVC_MGR_ADD_SERVICE: // ...
+        case SVC_MGR_LIST_SERVICES: // ...
+    }
+    return 0;
+}
+```
+
+显然，这里会从 binder_transaction_data 中取出 code，即 SVC_MGR_GET_SERVICE，然后使用 `do_find_service()` 方法查找服务。然后再 binder_send_reply() 应答发起者将结果返回即可。
+
+### 4.5 Binder 高效通信的原因
+
+上面我们梳理了 Binder 通信的过程，从上面我们似乎并没有看到能证明 Binder 高效的证据。那么 Binder 究竟靠什么实现高效的呢？
+
+实际上，Binder 之所以高效，从我们上面的代码还真看不出来。因为，我们上面的代码并没有涉及 Binder 驱动部分。正如我们之前描述的那样，ServiceManager、客户端和服务器实际是靠 Binder 驱动这个中间媒介进行交互的。而 Binder 高效的地方就发生在 Binder 驱动部分。
+
+![Binder驱动](res/binder_diver.jpg)
+
+就像图片描述的那样，当两个进程之间需要通信的时候，Binder 驱动会在两个进程之间建立两个映射关系：内核缓存区和内核中数据接收缓存区之间的映射关系，以及内核中数据接收缓存区和接收进程用户空间地址的映射关系。这样，当把数据从 1 个用户空间拷贝到内核缓冲区的时候，就相当于拷贝到了另一个用户空间中。
 
 ## 4、Binder 的使用
 
