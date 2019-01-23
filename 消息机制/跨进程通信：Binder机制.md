@@ -782,6 +782,6 @@ public class NoteService extends Service {
 
 ### 参考资料
 
-[]()
+[Android Bander设计与实现 - 设计篇](https://blog.csdn.net/universus/article/details/6211589)
 
 **源代码**：[Android-references](https://github.com/Shouheng88/Android-references/tree/master/advanced)
