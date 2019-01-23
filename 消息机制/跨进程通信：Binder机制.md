@@ -507,23 +507,25 @@ int svcmgr_handler(struct binder_state *bs,
 
 实际上，Binder 之所以高效，从我们上面的代码还真看不出来。因为，我们上面的代码并没有涉及 Binder 驱动部分。正如我们之前描述的那样，ServiceManager、客户端和服务器实际是靠 Binder 驱动这个中间媒介进行交互的。而 Binder 高效的地方就发生在 Binder 驱动部分。
 
-![Binder驱动](res/binder_diver.jpg)
+![图片来自-写给 Android 应用工程师的Binder原理剖析-https://zhuanlan.zhihu.com/p/35519585](res/binder_diver.jpg)
 
-就像图片描述的那样，当两个进程之间需要通信的时候，Binder 驱动会在两个进程之间建立两个映射关系：内核缓存区和内核中数据接收缓存区之间的映射关系，以及内核中数据接收缓存区和接收进程用户空间地址的映射关系。这样，当把数据从 1 个用户空间拷贝到内核缓冲区的时候，就相当于拷贝到了另一个用户空间中。
+> 图片来自 [《写给 Android 应用工程师的Binder原理剖析》](https://zhuanlan.zhihu.com/p/35519585)
+
+就像图片描述的那样，当两个进程之间需要通信的时候，Binder 驱动会在两个进程之间建立两个映射关系：内核缓存区和内核中数据接收缓存区之间的映射关系，以及内核中数据接收缓存区和接收进程用户空间地址的映射关系。这样，当把数据从 1 个用户空间拷贝到内核缓冲区的时候，就相当于拷贝到了另一个用户空间中。这样只需要做一次拷贝，省去了内核中暂存这个步骤，提升了一倍的性能。实现内存映射靠的就是上面的 `mmap()` 函数。
 
 ## 4、Binder 的使用
 
 ### 4.1 代理模式
 
-`Binder` 本质上只是一种底层通信方式，和具体服务没有关系。为了提供具体服务，`Server` 必须提供一套接口函数以便 `Client` 通过远程访问使用各种服务。这时通常采用**代理设计模式**：将接口函数定义在一个抽象类中，`Server` 和 `Client` 都会以该抽象类为基类实现所有接口函数，所不同的是 `Server` 端是真正的功能实现，而 `Client` 端是对这些函数远程调用请求的包装。为了简化这种设计模式，Android 中提供了 AIDL 供我们使用。下文中我们会介绍 AIDL 相关的内容以及它的一些基本的使用方式。
+`Binder` 本质上只是一种底层通信方式，和具体服务没有关系。为了提供具体服务，`Server` 必须提供一套接口函数以便 `Client` 通过远程访问使用各种服务。这时通常采用**代理设计模式**：将接口函数定义在一个抽象类中，`Server` 和 `Client` 都会以该抽象类为基类实现所有接口函数。所不同的是 `Server` 端是真正的功能实现，而 `Client` 端是对这些函数远程调用请求的包装。为了简化这种设计模式，Android 中提供了 AIDL 供我们使用。下文中我们会介绍 AIDL 相关的内容以及它的一些基本的使用方式。
 
 ### 4.2 AIDL
 
-`AIDL (Android Interface Definition Language，Android 接口定义语言)` 是一种文件格式，用来简化 `Binder`  的使用。当使用 `Binder` 的时候，只需要创建一个后缀名为 `.aidl` 的文件，然后像定义接口一样定义方法。定义完毕之后，使用工具 `aidl.exe` 即可生成 `Binder` 所需要的各种文件。当然，我们的 AS 已经为我们集成了 `aidl.exe`，所以，只需要在定义了 `AIDL` 文件之后，**编译**即可生成使用 `Binder` 时所需的文件。当然，不使用 AIDL，直接编写 `Binder` 所需的 `java` 文件也是可以的。
+`AIDL (Android Interface Definition Language，Android 接口定义语言)` 是一种文件格式，用来简化 Binder 的使用。当使用 Binder 的时候，只需要创建一个后缀名为 `.aidl` 的文件，然后像定义接口一样定义方法。定义完毕之后，使用工具 `aidl.exe` 即可生成 Binder 所需要的各种文件。当然，我们的 AS 已经为我们集成了 `aidl.exe`，所以，只需要在定义了 AIDL 文件之后，**编译**即可生成使用 `Binder` 时所需的文件。当然，不使用 AIDL，直接编写 Binder 所需的 java 文件也是可以的。
 
-`AIDL` 是一种接口定义语言，它与 Java 中定义接口的方式有所区别。下面我们通过一个例子来说明 AIDL 的使用方式。
+AIDL 是一种接口定义语言，它与 Java 中定义接口的方式有所区别。下面我们通过一个例子来说明 AIDL 的使用方式。
 
-这里我们模拟一个笔记管理的类，通过在 `Activity` 中与一个远程的 `Service` 进行交互来实现 `IPC` 的效果。这里，我们先要定义数据实体 `Note`，它只包含两个字段，并且实现了 `Parcelable`。这里 `Note` 所在的目录是 `me.shouheng.advanced.aidl`，然后，我们需要在 `src/main` 建立一个同样的包路径，然后定义所需的 AIDL 文件：
+这里我们模拟一个笔记管理的类，通过在 Activity 中与一个远程的 Service 进行交互来实现 IPC 的效果。这里，我们先要定义数据实体 Note，它只包含两个字段，并且实现了 Parcelable。这里 Note 所在的目录是 `me.shouheng.advanced.aidl`，然后，我们需要在 `src/main` 建立一个同样的包路径，然后定义所需的 AIDL 文件：
 
 ```java
     // INoteManager.aidl
@@ -539,15 +541,16 @@ int svcmgr_handler(struct binder_state *bs,
     parcelable Note;
 ```
 
-注意，在 `INoteManager` 文件中，我们定义了远程服务所需的各种方法。这里只定义了两个方法，一个用来获取指定 `id` 的笔记，一个用来向远程服务中添加一条笔记记录。
+注意，在 INoteManager 文件中，我们定义了远程服务所需的各种方法。这里只定义了两个方法，一个用来获取指定 `id` 的笔记，一个用来向远程服务中添加一条笔记记录。
 
-这样定义完了之后，我们可以对项目进行编译，这样就可以 `build` 目录下面得到为我们生成好的 `INoteManager` 类文件。以后，我们就可以使用这个文件中生成类和方法来进行远程通信。但在使用该接口之前，我们还是先来看一下其中都生成了些什么东西：
+这样定义完了之后，我们可以对项目进行编译，这样就可以 build 目录下面得到为我们生成好的 INoteManager 类文件。以后，我们就可以使用这个文件中生成类和方法来进行远程通信。但在使用该接口之前，我们还是先来看一下其中都生成了些什么东西：
 
 ```java
 package me.shouheng.advanced.aidl;
 
 public interface INoteManager extends android.os.IInterface {
 
+    // 交给远程来实现具体的业务逻辑
     public static abstract class Stub extends android.os.Binder implements me.shouheng.advanced.aidl.INoteManager {
 
         private static final java.lang.String DESCRIPTOR = "me.shouheng.advanced.aidl.INoteManager";
@@ -556,6 +559,7 @@ public interface INoteManager extends android.os.IInterface {
             this.attachInterface(this, DESCRIPTOR);
         }
 
+        // 使用代理包装远程对象
         public static me.shouheng.advanced.aidl.INoteManager asInterface(android.os.IBinder obj) {
             if ((obj==null)) {
                 return null;
@@ -564,6 +568,7 @@ public interface INoteManager extends android.os.IInterface {
             if (((iin!=null)&&(iin instanceof me.shouheng.advanced.aidl.INoteManager))) {
                 return ((me.shouheng.advanced.aidl.INoteManager)iin);
             }
+            // 返回代理对象
             return new me.shouheng.advanced.aidl.INoteManager.Stub.Proxy(obj);
         }
 
@@ -572,6 +577,7 @@ public interface INoteManager extends android.os.IInterface {
             return this;
         }
 
+        // 真实地发送数据交换的地方
         @Override
         public boolean onTransact(int code, android.os.Parcel data, android.os.Parcel reply, int flags) throws android.os.RemoteException {
             switch (code) {
@@ -583,6 +589,7 @@ public interface INoteManager extends android.os.IInterface {
                     data.enforceInterface(DESCRIPTOR);
                     long _arg0;
                     _arg0 = data.readLong();
+                    // 使用模板方法来实现业务
                     me.shouheng.advanced.aidl.Note _result = this.getNote(_arg0);
                     reply.writeNoException();
                     if ((_result!=null)) {
@@ -599,6 +606,7 @@ public interface INoteManager extends android.os.IInterface {
                     _arg0 = data.readLong();
                     java.lang.String _arg1;
                     _arg1 = data.readString();
+                    // 使用模板方法来实现业务
                     this.addNote(_arg0, _arg1);
                     reply.writeNoException();
                     return true;
@@ -607,6 +615,7 @@ public interface INoteManager extends android.os.IInterface {
             return super.onTransact(code, data, reply, flags);
         }
 
+        // 代理对象，包装了远程对象，内部调用远程对象获取远程的服务信息
         private static class Proxy implements me.shouheng.advanced.aidl.INoteManager {
 
             private android.os.IBinder mRemote;
@@ -632,6 +641,7 @@ public interface INoteManager extends android.os.IInterface {
                 try {
                     _data.writeInterfaceToken(DESCRIPTOR);
                     _data.writeLong(id);
+                    // 实际内部调用远程对象，在另一个进程实现业务逻辑
                     mRemote.transact(Stub.TRANSACTION_getNote, _data, _reply, 0);
                     _reply.readException();
                     if ((0!=_reply.readInt())) {
@@ -654,6 +664,7 @@ public interface INoteManager extends android.os.IInterface {
                     _data.writeInterfaceToken(DESCRIPTOR);
                     _data.writeLong(id);
                     _data.writeString(name);
+                    // 实际内部调用远程对象，在另一个进程实现业务逻辑
                     mRemote.transact(Stub.TRANSACTION_addNote, _data, _reply, 0);
                     _reply.readException();
                 } finally {
@@ -663,8 +674,8 @@ public interface INoteManager extends android.os.IInterface {
             }
         }
 
+        // 方法 id，用来标记当前调用的是哪个方法
         static final int TRANSACTION_getNote = (android.os.IBinder.FIRST_CALL_TRANSACTION + 0);
-
         static final int TRANSACTION_addNote = (android.os.IBinder.FIRST_CALL_TRANSACTION + 1);
     }
 
@@ -683,6 +694,7 @@ public class NoteService extends Service {
 
     private CopyOnWriteArrayList<Note> notes = new CopyOnWriteArrayList<>();
 
+    // 当前服务运行于另一个进程，这里实现业务逻辑
     private Binder binder = new INoteManager.Stub() {
         @Override
         public Note getNote(long id) {
@@ -702,6 +714,7 @@ public class NoteService extends Service {
         notes.add(new Note(101, "Note 101"));
     }
 
+    // 将 binder 返回，客户端可以使用连接来获取并调用
     @Nullable
     @Override
     public IBinder onBind(Intent intent) {
@@ -715,11 +728,14 @@ public class NoteService extends Service {
 下面是该 `Activity` 的实现。这里我们在 `onCreate()` 方法中启动上述服务。并将实例化的 `ServiceConnection` 作为参数启动该服务。在 `ServiceConnection` 的方法中，我们调用 `INoteManager.Stub` 的 `asInterface(IBinder)` 方法来讲 `service` 转换成 `INoteManager`，然后从其中获取指定 `id` 的笔记记录即可。
 
 ```java
+    // 创建服务连接
     private ServiceConnection connection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
+            // 返回代理对象
             INoteManager noteManager = INoteManager.Stub.asInterface(service);
             try {
+                // 使用代理对象
                 Note note = noteManager.getNote(100);
                 LogUtils.d(note);
             } catch (RemoteException e) {
@@ -734,12 +750,14 @@ public class NoteService extends Service {
     @Override
     protected void doCreateView(Bundle savedInstanceState) {
         Intent intent = new Intent(this, NoteService.class);
+        // 绑定服务
         bindService(intent, connection, Context.BIND_AUTO_CREATE);
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        // 解绑服务
         unbindService(connection);
     }
 }
@@ -758,25 +776,10 @@ public class NoteService extends Service {
 
 也就是客户端通过 `Proxy` 访问 `Binder` 驱动，然后 `Binder` 驱动调用 `Stub`，而 `Stub` 中调用我们的业务逻辑。这里的 `Proxy` 和 `Stub` 用来统一接口函数，`Proxy` 用来告诉我们远程服务中有哪些可用的方法，而具体的业务逻辑则由 `Stub` 来实现。`Binder` 的进程通信就发生在 `Proxy` 和 `Stub` 之间。
 
-### 4.3 Binder 的执行过程
+## 总结
 
-上面是标准的 AIDL 的使用方式，实际在我们开发的时候好像并没有用到许多 AIDL。这是因为很多 API 隐藏了 AIDL 的实现细节，而只提供了一个 Manager。就像下图所示，你只需要与 Manager 进行交互就可以了：
+以上就是 Binder 的工作原理，如有疑问，欢迎评论区交流。
 
-
-再加上 `ServiceManager`，一次完整的 IPC 过程中，各个模块的逻辑如下所示：
-
-![完整的 IPC 过程](res/Full_IPC.png)
-
-如果用一个更加详尽的方式展示这个过程，那么它将是下面这样：
-
-![详细的 Binder 流程](src/Binder_流程.png)
-
-最后，以获取定位服务的过程作为一个例子，那么在获取服务的过程中各个进程的状态如下所示。因为，这幅图中不仅包含了 `Binder` 相关的知识，同时涉及了许多 Android 系统层面的东西，对于自我提升会有许多帮助，因此将其 post 在这里。如果弄懂了上面的过程，看懂下面的整个过程也不会有太大的难度。
-
-![位置服务](res/AIDL_Location.png)
-
-## 参考资料
-
-
+### 参考资料
 
 **源代码**：[Android-references](https://github.com/Shouheng88/Android-references/tree/master/advanced)
