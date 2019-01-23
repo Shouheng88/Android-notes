@@ -25,7 +25,7 @@
 - [Android 系统启动流程源码分析](系统架构/Android系统启动过程.md)
 - 消息机制
     - [Android 消息机制：Handler、MessageQueue 和 Looper](消息机制/线程通信：Handler、MessageQueue和Looper.md.md)
-    - [Android IPC 机制：Binder 机制](消息机制/跨进程通信：Binder机制.md) (编辑中)
+    - [Android IPC 机制：Binder 机制](消息机制/跨进程通信：Binder机制.md) 
 - 异步编程
     - [AsyncTask 的使用和源码分析](异步编程/AsyncTask源码分析.md)
     - [Android 多线程编程：IntentService 和 HandlerThread](异步编程/Android多线程编程：IntentService和HandlerThread.md)
