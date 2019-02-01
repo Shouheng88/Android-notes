@@ -57,12 +57,13 @@
 
 调用控件的 `layout()` 方法进行滑动，下面是该方法的定义：
 
-```
+```java
 public void layout(int l, int t, int r, int b) { /*...*/ }
 ```
 
 其中的四个参数 `l`, `t`, `r`, `b`分别表示控件相对于父控件的左、上、右、下的距离，分别对应于上面的 `mLeft`, `mTop`, `mRight` 和 `mBottom`。所以，调用该方法同时可以改变控件的高度和宽度，但有时候我们不需要改变控件的高度和宽度，只要移动其位置即可。所以，我们又有方法 `offsetLeftAndRight()` 和 `offsetTopAndBottom()` 可以使用，后者只会对控件的位置进行平移。因此，我们可以进行如下的代码测试：
 
+```java
     private int lastX, lastY;
 
     private void layoutMove(MotionEvent event) {
@@ -83,6 +84,7 @@ public void layout(int l, int t, int r, int b) { /*...*/ }
                 break;
         }
     }
+```
 
 上面的代码的效果是指定的控件会随着手指的移动而移动。这里我们先记录下按下的位置，然后手指移动的时候记录下平移的位置，最后调用 `layout()` 即可。
 
@@ -90,24 +92,30 @@ public void layout(int l, int t, int r, int b) { /*...*/ }
 
 上面已经提到过这两个方法，它们只改变控件的位置，无法改变大小。我们只需要对上述代码做少量修改就可以实现同样的效果：
 
+```java
     getBinding().v.offsetLeftAndRight(offsetX);
     getBinding().v.offsetTopAndBottom(offsetY);
+```
 
 ### 2.3 改变布局参数
 
 通过获取并修改控件的 `LayoutParams`，我们一样可以达到修改控件的位置的目的。毕竟，本身这个对象就代表着控件的布局：
 
+```java
     FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) getBinding().v.getLayoutParams();
     lp.leftMargin = getBinding().v.getLeft() + offsetX;
     lp.topMargin = getBinding().v.getTop() + offsetY;
     getBinding().v.setLayoutParams(lp);
+```
 
 ### 2.4 动画
 
 使用动画我们也可以实现控件移动的效果，这里所谓的动画主要是操作 View 的 `transitionX` 和 `transitionY` 属性：
 
+```java
     getBinding().v.animate().translationX(5f);
     getBinding().v.animate().translationY(5f);
+```
 
 关于动画的内容，我们会在后面详细介绍。
 
@@ -115,18 +123,24 @@ public void layout(int l, int t, int r, int b) { /*...*/ }
 
 `scrollBy()` 方法内部调用了 `scrollTo()`，以下是这部分的源码。`scrollBy()` 表示在当前的位置上面进行平移，而 `scrollTo()` 表示平移到指定的位置：
 
+```java
     public void scrollBy(int x, int y) {
         scrollTo(mScrollX + x, mScrollY + y);
     }
+```
 
 同样对上述代码进行修改，我们也可以实现之前的效果：
 
+```java
     ((View) getBinding().v.getParent()).scrollBy(-offsetX, -offsetY);
+```
 
 或者
 
+```java
     View parent = ((View) getBinding().v.getParent());
     parent.scrollTo(parent.getScrollX()-offsetX, parent.getScrollY()-offsetY);
+```
 
 此外，还有一个需要注意的地方是：与上面的 `offsetLeftAndRight()` 和 `offsetTopAndBottom()` 不同的是，这里我们用了平移的值的相反数。原因很简单，因为我们要使用这两个方法的时候需要对指定的控件所在的父容器进行调用（正如上面是先获取父控件）。当我们希望控件相对于之前的位置向右下方向移动，就应该让父容器相对于之前的位置向左上方向移动。因为实际上该控件相对于父控件的位置没有发生变化，变化的是父控件的位置。（参考的坐标系不同）
 
@@ -136,12 +150,15 @@ public void layout(int l, int t, int r, int b) { /*...*/ }
 
 在使用 `Scroller` 之前，我们需要先实例化一个 `Scroller` ：
 
+```java
     private Scroller scroller = new Scroller(getContext());
+```
 
 然后，我们需要覆写自定义控件的 `computeScroll()` 方法，这个方法会在绘制 View 的时候被调用。所以，这里的含义就是，当 View 重绘的时候会调用 `computeScroll()` 方法，而 `computeScroll()` 方法会判断是否需要继续滚动，如果需要继续滚动的时候就调用 `invalidate()` 方法，该方法会导致 View 进一步重绘。所以，也就是靠着这种不断进行重绘的方式实现了滚动的效果。
 
 滑动效果最终结束的判断是通过 `Scroller` 的 `computeScrollOffset()` 方法实现的，当滚动停止的时候，该方法就会返回 `false`，这样不会继续调用 `invalidate()` 方法，因而也就不会继续绘制了。下面是该方法典型的覆写方式：
-    
+
+```java    
     @Override
     public void computeScroll() {
         super.computeScroll();
@@ -150,13 +167,16 @@ public void layout(int l, int t, int r, int b) { /*...*/ }
             invalidate();
         }
     }
+```
 
 然后，我们再加入一个滚动到指定位置的方法，在该方法内部我们使用了 2000ms 来指定完成整个滑动所需要的时间：
 
+```java
     public void smoothScrollTo(int descX, int descY) {
         scroller.startScroll(getScrollX(), getScrollY(), descX - getScrollX(), descY - getScrollY(), 2000);
         invalidate();
     }
+```
 
 这样定义了之后，我们只需要在需要滚动的时候调用自定义 View 的 `smoothScrollTo()` 方法即可。
 
@@ -170,27 +190,36 @@ public void layout(int l, int t, int r, int b) { /*...*/ }
 
 `VelocityTracker` 用来检测手指滑动的速率，它的使用非常简单。在使用之前，我们先使用它的静态方法 `obtain()` 获取一个实例，然后在 `onTouch()` 方法中调用它的 `addMovement(MotionEvent)` 方法：
 
+```java
     velocityTracker = VelocityTracker.obtain();
+```
 
 随后，当我们想要获得速率的时候，先调用 `computeCurrentVelocity(int)` 传入一个时间片段，单位是毫秒，然后调用 `getXVelocity()` 和 `getYVelocity()` 分别获得在水平和竖直方向上的速率即可：
 
+```java
     velocityTracker.computeCurrentVelocity((int) duration);
     getBinding().tvVelocity.setText("X:" + velocityTracker.getXVelocity() + "\n"
             + "Y:" + velocityTracker.getYVelocity());
+```
 
 本质上，计算速率的时候是用指定时间的长度变化除以我们传入的时间片。当我们使用完了 `VelocityTracker` 之后，需要回收资源：
 
+```java
     velocityTracker.clear();
     velocityTracker.recycle();
+```
 
 ### 3.3 GestureDectector
 
 `GestureDectector` 用来检测手指的手势。在使用它之前我们需要先获取一个 `GestureDetector` 的实例：
 
+```java
     mGestureDetector = new GestureDetector(getContext(), new MyOnGestureListener());
+```
 
 这里我们用了 `GestureDetector` 的构造方法，需要传入一个 `OnGestureListener` 对象。这里我们用了 `MyOnGestureListener` 实例。 `MyOnGestureListener` 是一个自定义的类，实现了 `OnGestureListener` 接口：
 
+```java
     private class MyOnGestureListener extends GestureDetector.SimpleOnGestureListener {
 
         @Override
@@ -216,15 +245,18 @@ public void layout(int l, int t, int r, int b) { /*...*/ }
             return true;
         }
     }
+```
 
 在 `MyOnGestureListener` 中，我们覆写了它的一些方法。比如，单击、双击和长按等等，当检测到相应的手势的时候这些方法就会被调用。
 
 然后，我们可以这样使用 `GestureDetector`，只要在控件的触摸事件回调中调用即可：
 
+```java
     getBinding().vg.setOnTouchListener((v, event) -> {
         mGestureDetector.onTouchEvent(event);
         return true;
     });
+```
 
 ## 4、事件分发机制
 
@@ -252,6 +284,7 @@ public void layout(int l, int t, int r, int b) { /*...*/ }
 
 于是，我们可以得到如下的伪代码。这段代码是存在于 ViewGroup 中的，也就是事件分发机制的核心代码：
 
+```java
     boolean dispatchTouchEvent(MotionEvent e) {
         boolean result;
         if (onInterceptTouchEvent(e)) {
@@ -261,6 +294,7 @@ public void layout(int l, int t, int r, int b) { /*...*/ }
         }
         return result;
     }
+```
 
 按照上述分析，触摸事件经过 Activity 传递给根 ViewGroup 之后：
 
@@ -278,6 +312,7 @@ public void layout(int l, int t, int r, int b) { /*...*/ }
 
 首先，我们来看 ViewGroup 中的 `dispatchTouchEvent(MotionEvent)` 方法，我们节选了其一部分：
 
+```java
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
         // ...
@@ -310,6 +345,7 @@ public void layout(int l, int t, int r, int b) { /*...*/ }
         // ...
         return handled;
     }
+```
 
 上面代码是我们节选的 ViewGroup 拦截事件的部分代码，这里的逻辑显然比伪代码复杂的多。不过，尽管如此，这些代码确实必不可少的。因为，当我们要去判断是否拦截一个触摸事件的时候，此时触摸的事件仍然在继续，这意味着这个方法会被持续调用；抬起的时候再按下，又是另一次调用。考虑到这个连续性，我们需要多做一些逻辑。
 
@@ -321,6 +357,7 @@ public void layout(int l, int t, int r, int b) { /*...*/ }
 
 如果在上面的操作中事件没有被拦截并且没有被取消，那么就会进入下面的逻辑。这部分代码处在 `dispatchTouchEvent()` 中。在下面的逻辑中会根据子元素的状态将事件传递给子元素：
 
+```java
     // 对子元素进行倒序遍历，即从上到下进行遍历
     final View[] children = mChildren;
     for (int i = childrenCount - 1; i >= 0; i--) {
@@ -344,9 +381,11 @@ public void layout(int l, int t, int r, int b) { /*...*/ }
         }
         // 显然，如果到了这一步，那么子元素的遍历仍将继续
     }
+```
 
 当判断了指定的 View 可以接收触摸事件之后会调用 `dispatchTransformedTouchEvent()` 方法分发事件。其定义的节选如下：
 
+```java
     private boolean dispatchTransformedTouchEvent(MotionEvent event, boolean cancel, View child, int desiredPointerIdBits) {
         final boolean handled;
         // ...
@@ -360,6 +399,7 @@ public void layout(int l, int t, int r, int b) { /*...*/ }
         }
         return handled;
     }
+```
 
 `dispatchTransformedTouchEvent()` 会根据传入的 `child` 是否为 `null` 分成两种调用的情形：事件没有被拦截的时候，让子元素继续分发事件；另一种是当事件被拦截的时候，调用当前的 ViewGroup 的 `super.dispatchTouchEvent(transformedEvent)` 处理事件。
 
@@ -367,6 +407,7 @@ public void layout(int l, int t, int r, int b) { /*...*/ }
 
 上面我们分析的 `dispatchTouchEvent(MotionEvent)` 是 ViewGroup 中重写之后的方法。但是，正如我们上面的分析，重写之前的方法总是会被调用，只是对象不同。这里我们就来分析以下这个方法的作用。
 
+```java
     public boolean dispatchTouchEvent(MotionEvent event) {
         // ...
         boolean result = false;
@@ -390,9 +431,11 @@ public void layout(int l, int t, int r, int b) { /*...*/ }
         // ...
         return result;
     }
+```
 
 根据上面的源码分析，我们知道，如果当前的 View 设置过 `OnTouchListener`, 并且在 `onTouch()` 回调方法中返回了 `true`，那么 `onTouchEvent(MotionEvent)` 将不会得到调用。那么，我们再来看一下 `onTouchEvent()` 方法： 
 
+```java
     public boolean onTouchEvent(MotionEvent event) {
         // ...
         // 判断当前控件是否是可以点击的：实现了点击、长按或者设置了可点击属性
@@ -428,6 +471,7 @@ public void layout(int l, int t, int r, int b) { /*...*/ }
         }
         return false;
     }
+```
 
 这里先判断指定的控件是否是可点击的，即是否设置过点击或者长按的事件。然后会在手势抬起的时候调用 `performClick()` 方法，并会在这个方法中尝试从 `ListenerInfo` 取 `OnClickListener` 进行回调；会在长按的时候进行监听以调用相应长按事件；其他的事件与之类似，可以自行分析。所以，我们可以得出结论，当为控件的触摸事件进行了赋值并且在其中返回了 `false` 那么就代表这个触摸事件被消耗了。这个触摸事件的优先级比较高，即使设置过单击和长按事件的回调，它们也不会被调用。
 

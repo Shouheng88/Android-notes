@@ -4,6 +4,7 @@
 
 当我们调用 `startActivity()` 方法的时候，会调用到 `ActivityThread` 中的 `performLaunchActivity()` 获取一个 Activity 实例， 并在 `Instrumentation` 的 `callActivityOnCreate()`  方法中调用 Activity 的 `onCreate()` 完成 DecorView 的创建。这样我们就获取了一个 Activity 的实例，然后我们调用 `handleResumeActivity()` 来回调 Activity 的 `onResume()`：
 
+```java
     private void handleLaunchActivity(ActivityClientRecord r, Intent customIntent, String reason) {
         // ....
         WindowManagerGlobal.initialize();
@@ -22,9 +23,11 @@
         }
         // ...
     }
+```
 
 然后，在 `handleResumeActivity()` 方法中的 `performResumeActivity()` 会回调 Activity 的 `onResume()` 方法。在该方法中，我们会从 Window 中获取之前添加进去的 DecorView，然后将其添加到 WindowManager 中：
 
+```java
     final void handleResumeActivity(IBinder token, boolean clearHide, boolean isForward, boolean reallyResume, int seq, String reason) {
         // 在这里会回调 Activity 的 onResume()
         r = performResumeActivity(token, clearHide, reason);
@@ -63,9 +66,11 @@
             }
         }
     }
+```
 
 这里的 `WindowManager` 是 `WindowManagerImpl` 的实例，而调用它的 `addView()` 方法的时候会使用 `WindowManagerGlobal` 的 `addView()` 方法。在该方法中会 new 出来一个 `ViewRootImpl`，然后调用它的 `setView()` 把传进来的 `DecorView` 添加到 `Window` 里。同时，会调用 `requestLayout()` 方法进行布局，然后，并最终调用 `performTraversals()` 完成对整个 View 树进行遍历：
 
+```java
     private void performTraversals() {
         // ...
         if (!mStopped || mReportNextDraw) {
@@ -86,6 +91,7 @@
             performDraw();
         }
     }
+```
 
 在该方法中会调用 `performMeasure()`、`performLayout()` 和 `performDraw()` 三个方法，它们分别会调用 DecorView 的 `measure()`、`layout()` 和 `draw()` 完成对**整个 View 树的测量、布局和绘制**，一个界面也就呈现给用户了。如果您做过自定义 View 的话，那么您对 `onMeasure()`、`onLayout()` 和 `onDraw()`三个方法一定不会陌生，前面的三个方法与后面的三个方法之间的关系就是：后面的三个方法会被前面的三个方法调用，本质上就是提供给用户用来自定义的方法。下面我们就看下这三个方法究竟各自做了什么操作，当然，我们尽可能从自定义控件的角度来分析，因为这对一个开发者可能帮助更大。
 
@@ -101,18 +107,22 @@ View 的大小不仅由自身所决定，同时也会受到父控件的影响，
 
 下面是 View 类中的 `onMeasure()` 方法。这是一个默认的实现，调用了 `setMeasuredDimension()` 方法来存储测量之后的宽度和高度。**当我们自定义 View 的时候，也需要调用 setMeasuredDimension() 方法把最终的测量结果存储起来**：
 
+```java
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         setMeasuredDimension(
             getDefaultSize(getSuggestedMinimumWidth(), widthMeasureSpec),
             getDefaultSize(getSuggestedMinimumHeight(), heightMeasureSpec));
     }
+```
 
 显然，我们的测量依据就是 `widthMeasureSpec` 和 `heightMeasureSpec` 两个参数。它们是整型的、32位变量，包含了测量模式和测量数值的信息（按位存储到整型变量上，包装成整型的目的是为了节约存储空间）。一般我们会像下面这样来分别获取高度和宽度的测量模式和测量数值（实际就是按位截取）：
-    
+
+```java    
     int widthsize = MeasureSpec.getSize(widthMeasureSpec);      // 测量数值
     int widthmode = MeasureSpec.getMode(widthMeasureSpec);      // 测量模式    
     int heightsize = MeasureSpec.getSize(heightMeasureSpec);    // 测量数值
     int heightmode = MeasureSpec.getMode(heightMeasureSpec);    // 测量模式
+```
 
 测量模式共有 `MeasureSpec.UNSPECIFIED`、`MeasureSpec.AT_MOST` 和 `MeasureSpec.EXACTLY` 三种，分别对应二进制数值 `00`、`01` 和 `10`，它们各自的含义如下：
 
@@ -130,6 +140,7 @@ View 的大小不仅由自身所决定，同时也会受到父控件的影响，
 
 由于 ViewGroup 本身没有布局的特点，所以它没有覆写 `onMeasure()`。有自身布局特点的，比如 `LinearLayout` 和 `RelativeLayout` 等都覆写并实现了这个方法。尽管如此，ViewGroup 提供了一些方法帮助我们进行测量，首先是 `measureChildren()` 方法：
 
+```java
     protected void measureChildren(int widthMeasureSpec, int heightMeasureSpec) {
         final int size = mChildrenCount;
         final View[] children = mChildren;
@@ -140,9 +151,11 @@ View 的大小不仅由自身所决定，同时也会受到父控件的影响，
             }
         }
     }
+```
 
 这里的逻辑比较简单，就是对子元素进行遍历并判断如果指定的 View 是否位 `GONE` 的状态，如果不是就调用 `measureChild()` 方法：
 
+```java
     protected void measureChild(View child, int parentWidthMeasureSpec, int parentHeightMeasureSpec) {
         final LayoutParams lp = child.getLayoutParams();
         final int childWidthMeasureSpec = getChildMeasureSpec(parentWidthMeasureSpec,
@@ -151,9 +164,11 @@ View 的大小不仅由自身所决定，同时也会受到父控件的影响，
                 mPaddingTop + mPaddingBottom, lp.height);
         child.measure(childWidthMeasureSpec, childHeightMeasureSpec);
     }
+```
 
 该方法也比较容易理解，就是将子元素的布局参数 `LayoutParams` 取出，获取它的宽度和高度之后，将所有信息传递给 `getChildMeasureSpec()`。这样就得到了用于子元素布局的 `childWidthMeasureSpec` 和 `childHeightMeasureSpec` 参数。然后，再调用子元素的 `measure()` 方法，从而依次完成对整个 View 树的遍历。下面我们看下 `getChildMeasureSpec()` 方法做了什么操作：
 
+```java
     public static int getChildMeasureSpec(int spec, int padding, int childDimension) {
         // 首先从 spec 中取出父控件的测量模式和测量数值
         int specMode = MeasureSpec.getMode(spec);
@@ -216,9 +231,11 @@ View 的大小不仅由自身所决定，同时也会受到父控件的影响，
         // 返回一个封装好的测量结果，就是把测量数值和测量模式封装成一个32位的整数
         return MeasureSpec.makeMeasureSpec(resultSize, resultMode);
     }
+```
 
 上面我们已经为这段代码作了非常详细的注释。只需要注意，这里在获取子元素的测量结果的时候是基于父控件的测量结果来的，需要根据父元素的测量模式和测量数值结合自身的布局特点分成上面九种情况。或者可以按照下面的写法将其划分成下面几种情况：
 
+```java
     public static int getChildMeasureSpec(int spec, int padding, int childDimension) {
         int specMode = MeasureSpec.getMode(spec), specSize = MeasureSpec.getSize(spec);
         int size = Math.max(0, specSize - padding);
@@ -250,18 +267,23 @@ View 的大小不仅由自身所决定，同时也会受到父控件的影响，
         }
         return MeasureSpec.makeMeasureSpec(resultSize, resultMode);
     }
+```
 
 这两种方式只是划分的角度不一样，后面的这种方法是从子元素的布局参数上面来考虑的。另外，这里有个 `sUseZeroUnspecifiedMeasureSpec` 布尔参数需要提及一下，会根据系统的版本来进行赋值：
 
+```java
     sUseZeroUnspecifiedMeasureSpec = targetSdkVersion < Build.VERSION_CODES.M;
+```
 
 也就是当系统是 API23 以下的时候的为 `true`. 加入这个参数的原因是，API23 之后，当父控件的测量模式是 `UNSPECIFIED` 的时候，子元素可以给父控件提供一个可能的大小。下面是注释的原话 ;-)
 
+```java
     // In M and newer, our widgets can pass a "hint" value in the size
     // for UNSPECIFIED MeasureSpecs. This lets child views of scrolling containers
     // know what the expected parent size is going to be, so e.g. list items can size
     // themselves at 1/3 the size of their container. It breaks older apps though,
     // specifically apps that use some popular open source libraries.
+```
 
 #### 2.2.2 LinearLayout 的 onMeasure()
 
@@ -269,6 +291,7 @@ View 的大小不仅由自身所决定，同时也会受到父控件的影响，
 
 下面是其 `onMeasure()` 方法，显然在进行测量的时候会根据其布局的方向分别实现测量的逻辑：
 
+```java
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         if (mOrientation == VERTICAL) {
             measureVertical(widthMeasureSpec, heightMeasureSpec);
@@ -276,9 +299,11 @@ View 的大小不仅由自身所决定，同时也会受到父控件的影响，
             measureHorizontal(widthMeasureSpec, heightMeasureSpec);
         }
     }
+```
 
 然后，我们以 `measureVertical()` 为例，来看一下 LinearLayout 在垂直方向上面是如何进行测量的。这段代码比较长，我们只截取其中的一部分来进行分析：
 
+```java
     void measureVertical(int widthMeasureSpec, int heightMeasureSpec) {
         // ...
         // 获取LinearLayout的测量模式
@@ -336,6 +361,7 @@ View 的大小不仅由自身所决定，同时也会受到父控件的影响，
                 heightSizeAndState);
         // ...
     }
+```
 
 上面是 LinearLayout 在垂直方向上面的测量的过程，在测量的时候会根据子元素的布局将子元素的测量高度添加到 `mTotalLength` 上，然后再加上填充的大小，作为最终的测量结果。
 
@@ -345,6 +371,7 @@ View 的大小不仅由自身所决定，同时也会受到父控件的影响，
 
 下面我们先看一下 `layout()` 方法在 View 中的实现：
 
+```java
     public void layout(int l, int t, int r, int b) {
         if ((mPrivateFlags3 & PFLAG3_MEASURE_NEEDED_BEFORE_LAYOUT) != 0) {
             onMeasure(mOldWidthMeasureSpec, mOldHeightMeasureSpec);
@@ -366,6 +393,7 @@ View 的大小不仅由自身所决定，同时也会受到父控件的影响，
 
         // ...
     }
+```
 
 这里会调用 `setFrame()` 方法，它的主要作用是根据新的布局参数和老的布局参数做一个对比，以判断控件的大小是否发生了变化，如果变化了的话就调用 `invalidate()` 方法并传入参数 `true`，以表明绘图的缓存也发生了变化。这里就不给出这个方法的具体实现了。然后注意到，在 `layout()` 方法中会回调 `onLayout()` 方法来完成各个控件的位置的确定。
 
@@ -373,6 +401,7 @@ View 的大小不仅由自身所决定，同时也会受到父控件的影响，
 
 与测量过程类似，LinearLayout 在 layout 的时候也根据布局的方向分成两种情形：
 
+```java
     protected void onLayout(boolean changed, int l, int t, int r, int b) {
         if (mOrientation == VERTICAL) {
             layoutVertical(l, t, r, b);
@@ -380,9 +409,11 @@ View 的大小不仅由自身所决定，同时也会受到父控件的影响，
             layoutHorizontal(l, t, r, b);
         }
     }
+```
 
 这里我们仍以垂直方向的方法为例。与测量的过程相比，layout 的过程的显得简单、清晰得多：
 
+```java
     void layoutVertical(int left, int top, int right, int bottom) {
         // ...
         // 根据控件的 gravity 特点得到顶部的位置
@@ -445,12 +476,15 @@ View 的大小不仅由自身所决定，同时也会受到父控件的影响，
             }
         }
     }
+```
 
 因为布局方向是垂直方向的，所以在对子元素进行遍历之前，先对自身的顶部的位置进行计算，然后再依次遍历子元素，并对顶部的高度不断叠加，最后调用 `setChildFrame()` 方法:
 
+```java
     private void setChildFrame(View child, int left, int top, int width, int height) {
         child.layout(left, top, left + width, top + height);
     }
+```
 
 这样就完成了对整个 View 树的 `layout()` 方法的调用。
 
@@ -469,6 +503,7 @@ View 中提供了 `onDraw()` 方法用来完成对自身的内容的绘制，所
 
 下面是这部分代码，代码的注释中也详细注释了每个步骤的逻辑：
 
+```java
     public void draw(Canvas canvas) {
         final int privateFlags = mPrivateFlags;
         final boolean dirtyOpaque = (privateFlags & PFLAG_DIRTY_MASK) == PFLAG_DIRTY_OPAQUE &&
@@ -516,12 +551,15 @@ View 中提供了 `onDraw()` 方法用来完成对自身的内容的绘制，所
 
         // ...
     }
+```
 
 注意到在上面的方法中会调用 `dispatchDraw(canvas)` 方法来分发绘制事件给子控件来完成整个 View 树的绘制。在 View 中，这是一个空的方法，ViewGroup 覆写了这个方法，并在其中调用 `drawChild()` 来完成对指定的 View 的 `draw()` 方法的调用：
 
+```java
     protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
         return child.draw(canvas, this, drawingTime);
     }
+```
 
 而对于 LinearLayout 这样本身没有绘制需求的控件，没有覆写 `onDraw()` 和  `dispatchDraw(canvas)`  等方法，因为 View 和 ViewGroup 中提供的功能已经足够使用。
 
