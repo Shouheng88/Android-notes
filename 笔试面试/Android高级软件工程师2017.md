@@ -1,48 +1,135 @@
 # Android 面试题总结
 
-## 1、Java API 部分
+## 1、Java & Kotlin & 一些常用 API
 
-- [x] **Q. LruCache 的原理？** > 答案：参考文章：[《Android 内存缓存框架 LruCache 的源码分析》](https://juejin.im/post/5bea581be51d451402494af2)
+### 1.1 LruCache 的原理
 
-- [x] **Q. SparseArray 的原理？** > 答案：SparseArray 主要用来替换 Java 中的 HashMap，因为 HashMap 将整数类型的键默认装箱成 Integer. 而 SparseArray 通过内部维护两个数组来进行映射，并且使用二分查找寻找指定的键。SparseArray 用于当 HashMap 的键是 Integer 的情况，它会在内部维护一个 int 类型的数组来存储键。同理，还有 LongSparseArray, BooleanSparseArray 等，都是用来通过减少装箱操作来节省内存空间的。但是，因为它内部使用二分查找寻找键，所以其效率不如 HashMap 高，所以当要存储的键值对的数量非常大的时候，建议使用 HashMap. 
+LruCache 用来实现基于内存的缓存，LRU 就是**最近最少使用**的意思，LruCache 基于 **LinkedHashMap** 实现。LinkedHashMap 在 HashMap 之上进行了封装，除了具有哈希功能，还将数据插入到双向链表中维护。每次获取到的数据会被移动到链表的尾部，当达到了缓存的最大的数量的时候就将链表首部的记录移出。
 
-- [x] **Q. Java 注解？** > 答案：重点在于 Java 注解的两种使用方式，一个是基于反射的，一个是基于 AnnotationProcessor 的，参考文章[《Java 注解及其在 Android 中的应用》](https://juejin.im/post/5b824b8751882542f105447d0).
+资料：[《Android 内存缓存框架 LruCache 的源码分析》](https://juejin.im/post/5bea581be51d451402494af2)
 
-- [x] **Q. ArrayList 与 LinkedList 区别？** > 答案：老生常谈的话题，一个前面的基于动态数组，后面的基于双向链表。
+关联：
 
-- [x] **Q. Object 类的 equal() 和 hashcode() 方法重写？** 答案：两个本地都具有决定一个对象身份功能，所以两者的行为必须一致，覆写这两个方法需要遵循一定的原则，可以通过参考《Effect Java》一书的相关章节详细了解。一般，我们不会覆写该方法，可以通过 IDEA 的工具生成该方法。
+#### 1.1.1 DiskLruCache
 
-- [x] **Q. StringBuffer 与 StringBuilder 的区别？** 答案：前者是线程安全的，每个方法上面都使用 synchronized 关键字进行了加锁，后者是非线程安全的。一般情况下使用 StringBuilder 即可，因为非多线程环境进行加锁是一种没有必要的开销。
+#### 1.2.1 Glide 缓存的实现原理
 
-## 2、并发编程相关
+### 1.2 SparseArray 的原理
 
-- [x] **Q. ThreadLocal 原理？** > 答案：线程局部变量，参考文章：[ThreadLocal的使用及其源码实现](https://juejin.im/post/5b44cd7c6fb9a04f980cb065)
+SparseArray 主要用来替换 Java 中的 HashMap，因为 HashMap 将整数类型的键默认装箱成 Integer (效率比较低). 而 SparseArray **通过内部维护两个数组来进行映射**，并且使用**二分查找**寻找指定的键，所以**它的键对应的数组无需是包装类型**。SparseArray 用于当 HashMap 的键是 Integer 的情况，它会在内部维护一个 int 类型的数组来存储键。同理，还有 LongSparseArray, BooleanSparseArray 等，都是用来通过减少装箱操作来节省内存空间的。但是，因为它内部使用二分查找寻找键，所以其效率不如 HashMap 高，所以当要存储的键值对的数量比较大的时候，考虑使用 HashMap. 
 
-- [ ] HashMap实现原理，ConcurrentHashMap 的实现原理
-- [ ] 线程间 操作 List
-- [ ] OSGI
-- [ ] synchronized与Lock的区别
-- [ ] 抽象类和接口的区别
-- [ ] 集合 Set实现 Hash 怎么防止碰撞 
-- [ ] 死锁，线程死锁的4个条件？
-- [ ] 进程状态
-- [ ] 并发集合了解哪些
-- [ ] CAS介绍
-- [ ] volatile用法
-- [ ] 开启线程的三种方式,run()和start()方法区别
+### 1.3 对 Java 注解的理解
+
+Java 注解在 Android 中主要有两种使用方式：
+
+1. 基于**反射**：这种可以用来实现一些注解的解析等简单的工作。通过获取类及其字段、方法等的注解信息来获取类的信息。因为反射本身的性能问题，所以应当尽量少得使用。
+2. 基于 **AnnotationProcessor** 的：也就是在编译期间动态生成一堆代码，用来实现业务逻辑，通常也会对我们的业务类进行代理，然后在运行时通过反射调用我们的业务类，可以用来对类的功能进行增强等。使用这种方式的注解时可能会用到 **Javapoet** 来帮助我们生成 Java 文件。
+
+更多：[《Java 注解及其在 Android 中的应用》](https://juejin.im/post/5b824b8751882542f105447d).
+
+关联：ButterKnife, ARouter
+
+### 1.4 ArrayList 与 LinkedList 区别
+
+ArrayList：**基于动态数组，底层使用 System.arrayCopy() 实现数组扩容；查找值的复杂度为 O(1)，增删的时候可能扩容，所以比 LinkedList 高；如果能够大概估出列表的长度，可以通过在 new 出实例的时候指定一个大小来指定数组的初始大小，以减少扩容的次数；适合应用到查找多于增删的情形，比如作为 Adapter 的数据的容器**。
+
+LinkedList：**基于双向链表；增删的复杂度为 O(1)，查找的复杂度为 O(n)；适合应用到增删比较多的情形**。
+
+相关：
+
+#### 1.4.1 如何实现线程间安全地操作 List？
+
+可以根据具体的业务进行选择：1).使用 `sychronized` 在操作 List 的时候进行控制；2).使用 `Collections.synchronizedList()` 进行包装，以实现线程安全；3).读多写少的情况下，为了提升效率还可以使用 `CopyOnWriteArrayList`. 方法 2 中的方式本质是对传入的 List 做了一层代理，每个方法进行了线程安全的包装，通过对一个局部变量进行加锁 (`sychronized`) 实现的；方法 3 中类似于 ArrayList，但是读操作的时候不加锁，写的时候会加锁，加锁是用 `ReentrantLock` 实现的。
+
+### 1.5 Object 类的 equal() 和 hashcode() 方法重写？
+
+两个**都具有决定一个对象身份功能，所以两者的行为必须一致，覆写这两个方法需要遵循一定的原则**，可以通过参考《Effect Java》一书的相关章节详细了解。一般，我们不会覆写该方法，可以通过 IDEA 的工具生成该方法。可以从业务的角度考虑如何标志一个对象的唯一特征，或者使用它的全部字段来进行计算。
+
+相关：
+
+#### 1.5.1 Object 都有哪些方法？
+
+`wait()`, `notify()`, `clone()`, `finilize()`,`toString()`, `equal()` 和 `hashCode()`. 
+
+### 1.6 字符串：StringBuffer 与 StringBuilder 的区别？
+
+前者是线程安全的，每个方法上面都使用 synchronized 关键字进行了加锁，后者是非线程安全的。一般情况下使用 StringBuilder 即可，因为非多线程环境进行加锁是一种没有必要的开销。
+
+#### 1.5.2 String 为什么要设计成不可变的？
+#### 1.5.3 对Java中String的了解
+#### 1.5.4 string to integer
+
+### 1.7 ThreadLocal
+
+ThreadLocal 通过将每个线程自己的局部变量存在自己的内部来实现线程安全。使用它的时候会定义它的静态变量，每个线程看似是从 TL 中获取数据，而实际上 TL 只起到了键值对的键的作用，实际的数据会以哈希表的形式存储在 Thread 实例的 Map 类型局部变量中。当调用 TL 的 `get()` 方法的时候会使用 `Thread.currentThread()` 获取当前 Thread 实例，然后从该实例的 Map 局部变量中，使用 TL 作为键来获取存储的值。
+
+其他，Thread 内部的 Map 使用线性数组解决哈希冲突。
+
+资料：[《ThreadLocal的使用及其源码实现》](https://juejin.im/post/5b44cd7c6fb9a04f980cb065)
+
+### 1.8 Map 相关：HashMap、ConcurrentHashMap 以及 HashTable
+
+HashMap (下称 HM) 是哈希表，ConcurrentHashMap (下称 CHM) 也是哈希表，它们之间的区别是 HM 不是线程安全的，CHM 线程安全，并且对锁进行了优化。对应 HM 的还有 HashTable (下称 HT)，它通过对内部的每个方法加锁来实现线程安全，效率较低。
+
+## TODO
+
+#### 1.8.1 集合 Set 实现 Hash 怎么防止碰撞
+
+HashSet 内部通过 HashMap 实现，HashMap 解决碰撞使用的是拉链法，碰撞的元素会放进链表中，链表过长的话会转换成红黑树。
+
+
+
+### 1.9 锁：synchronized 与 Lock (重入锁) 的区别
+
+1. **等待可中断**：当持有锁的线程长期不释放锁的时候，正在等待的线程可以选择放弃等待；（两种方式获取锁的时候都会使计数+1，但是方式不同，所以重入锁可以终端）
+2. **公平锁**：当多个线程等待同一个锁时，公平锁会按照申请锁的时间顺序来依次获得锁；而非公平锁，当锁被释放时任何在等待的线程都可以获得锁（不论时间尝试获取的时间先后）。sychronized 只支持非公平锁，Lock 可以通过构造方法指定使用公平锁还是非公平锁。
+3. **锁可以绑定多个条件**：ReentrantLock 可以绑定多个 Condition 对象，而 sychronized 要与多个条件关联就不得不加一个锁，ReentrantLock 只要多次调用newCondition 即可。
+
+#### 1.9.1 死锁，线程死锁的4个条件？
+
+1. 互斥：某种资源一次只允许一个进程访问，即该资源一旦分配给某个进程，其他进程就不能再访问，直到该进程访问结束。（一个筷子只能被一个人拿）
+2. 占有且等待：一个进程本身占有资源（一种或多种），同时还有资源未得到满足，正在等待其他进程释放该资源。（每个人拿了一个筷子还要等其他人放弃筷子）
+3. 不可抢占：别人已经占有了某项资源，你不能因为自己也需要该资源，就去把别人的资源抢过来。（别人手里的筷子你不能去抢）
+4. 循环等待：存在一个进程链，使得每个进程都占有下一个进程所需的至少一种资源。（每个人都在等相邻的下一个人放弃自己的筷子）
+
+#### 1.9.2 synchronize 的原理
+
+在所修饰的方法或者方法块周围添加 monitorenter 和 monitorexit 指令，进入方法的时候需要先获取类的实例或者类的监视器。每被获取一次会加 1，以此来统计获取的次数。离开方法的时候减 1，当计数减为 0 的时候，锁被释放。
+
+#### 1.9.3 CAS 介绍
+
+#### 1.9.4 Lock 原理
+
+#### 1.9.5 volatile 原理和用法
+
+### 2.0 线程：线程的状态
+
+#### 2.0.1 开启线程的三种方式，run() 和 start() 方法区别
+
+1. Thread 覆写 `run()` 方法；
+2. Thread + Runnable；
+3. ExectorService + Callable；
+
+`start()` 会调用 native 的 `start()` 方法，然后 `run()` 方法会被回调，此时 `run()` 异步执行；如果直接调用 `run()`，它会使用默认的实现（除非覆写了），并且会在当前线程中执行，此时 Thread 如同一个普通的类。
+
+#### 
+
+### 2.1 并发容器：并发集合了解哪些
+
+1. ConcurrentHashMap：线程安全的 HashMap，对桶进行加锁，降低锁粒度提升性能。
+2. ConcurrentSkipListMap：跳表，自行了解，给跪了……
+3. ConCurrentSkipListSet：借助 ConcurrentSkipListMap 实现
+4. CopyOnWriteArrayList：读多写少的 ArrayList，写的时候加锁
+5. CopyOnWriteArraySet：借助 CopyOnWriteArrayList 实现的……
+6. ConcurrentLinkedQueue：无界且线程安全的 Queue，其 `poll()` 和 `add()` 等方法借助 CAS 思想实现。锁比较轻量。
+
+
 - [ ] Java线程池
 - [ ] 多线程（关于AsyncTask缺陷引发的思考）
-- [ ] static synchronized 方法的多线程访问和作用，同一个类里面两个synchronized方法，两个线程同时访问的问题
-- [ ] 对Java中String的了解
-- [ ] string to integer
-- [ ] volatile的原理
-- [ ] synchronize的原理
-- [ ] lock原理
 - [ ] AsyncTask机制，如何取消AsyncTask
 - [ ] 手写生产者/消费者模式
 - [ ] 如何实现线程同步？
 - [ ] hashmap如何put数据（从hashmap源码角度讲解）？
-- [ ] String 为什么要设计成不可变的？
 - [ ] List 和 Map 的实现方式以及存储方式。
 - [ ] 静态内部类的设计意图
 - [ ] 线程如何关闭，以及如何防止线程的内存泄漏
@@ -51,7 +138,6 @@
 - [ ] HashSet与HashMap怎么判断集合元素重复
 - [ ] wait/notify
 - [ ] 多线程：怎么用、有什么问题要注意；Android线程有没有上限，然后提到线程池的上限
-- [ ] ReentrantLock 、synchronized和volatile（n面）
 - [ ] Java中同步使用的关键字，死锁
 - [ ] HashMap的实现，与HashSet的区别
 - [ ] 死锁的概念，怎么避免死锁
@@ -59,7 +145,6 @@
 - [ ] ReentrantLock的内部实现
 - [ ] 集合的接口和具体实现类，介绍
 - [ ] TreeMap具体实现
-- [ ] synchronized与ReentrantLock
 
 ## JVM
 
