@@ -473,6 +473,46 @@ public class MyKnifeActivity extends CommonActivity<ActivityMyKnifeBinding> {
 1. 首先，我们需要按照自己的需要考虑如何定义注解。
 2. 然后，我们需要实现 AbstractProcessor ，覆写各个方法，注册，并在 process 方法中完成生成类文件的操作。
 
+### 2.3 使用注解替换枚举
+
+注解常见的第三种使用方式是用来取代枚举的。因为枚举相比于普通的字符串或者整数会带来额外的内存占用，因此对于 Android 这种对内存要求比较高的项目而言就需要对枚举进行优化。当然，我们使用字符串常量或者整数常量替换枚举就可以了，但是这种方式的参数可以接受任意字符串和整型的值。假如我们希望能够像枚举一样对传入的参数的范围进行限制，就需要使用枚举了！
+
+比如，我们需要对相机的闪光灯参数进行限制，每个参数通过一个整型的变量指定。然后，我们通过一个方法接受整型的参数，并通过注解来要求指定的整型必须在我们上述声明的整型范围之内。我们可以这样定义，
+
+首先，我们定义一个类 Camera 用来存储闪光灯的枚举值和注解，
+
+```java
+public final class Camera {
+
+    public static final int FLASH_AUTO                      = 0;
+    public static final int FLASH_ON                        = 1;
+    public static final int FLASH_OFF                       = 2;
+    public static final int FLASH_TORCH                     = 3;
+    public static final int FLASH_RED_EYE                   = 4;
+
+    @IntDef({FLASH_ON, FLASH_OFF, FLASH_AUTO, FLASH_TORCH, FLASH_RED_EYE})
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface FlashMode {
+    }
+}
+```
+
+如上所示，这样我们就定义了枚举值及其注解。然后，我们可以这样使用该注解，
+
+```java
+public final class Configuration implements Parcelable {
+
+    @Camera.FlashMode
+    private int flashMode = Camera.FLASH_AUTO;
+
+    public void setFlashMode(@Camera.FlashMode int flashMode) {
+        this.flashMode = flashMode;
+    }
+}
+```
+
+这样当我们传入的参数不在我们自定义枚举的 `@IntDef` 指定的范围之内的时候，IDE 会自动给出提示。
+
 ## 3、总结
 
 以上就是注解的两种比较常见的使用方式。第一种是通过反射来进行的，因为反射本身的效率比较低，所以比较适用于发射比较少的场景；第二种方式是在编译期间通过编译器生成代码来实现的，相比于第一种，它还是可能会用到反射的，但是不必在运行时对类的每个方法和字段进行遍历，因而效率高得多。
