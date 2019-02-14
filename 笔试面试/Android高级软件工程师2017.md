@@ -39,7 +39,13 @@ LinkedList：**基于双向链表；增删的复杂度为 O(1)，查找的复杂
 
 #### 1.4.1 如何实现线程间安全地操作 List？
 
-可以根据具体的业务进行选择：1).使用 `sychronized` 在操作 List 的时候进行控制；2).使用 `Collections.synchronizedList()` 进行包装，以实现线程安全；3).读多写少的情况下，为了提升效率还可以使用 `CopyOnWriteArrayList`. 方法 2 中的方式本质是对传入的 List 做了一层代理，每个方法进行了线程安全的包装，通过对一个局部变量进行加锁 (`sychronized`) 实现的；方法 3 中类似于 ArrayList，但是读操作的时候不加锁，写的时候会加锁，加锁是用 `ReentrantLock` 实现的。
+可以根据具体的业务进行选择：
+
+1. 使用 `sychronized` 在操作 List 的时候进行控制；
+2. 使用 `Collections.synchronizedList()` 进行包装，以实现线程安全；
+3. 读多写少的情况下，为了提升效率还可以使用 `CopyOnWriteArrayList` 代替 ArrayList，使用 `ConcurrentLinkedQueue` 代替 LinkedList. 
+
+方法 2 中的方式本质是对传入的 List 做了一层代理，每个方法进行了线程安全的包装，通过对一个局部变量进行加锁 (`sychronized`) 实现的；方法 3 中类似于 ArrayList，但是读操作的时候不加锁，写的时候会加锁，加锁是用 `ReentrantLock` 实现的。
 
 ### 1.5 Object 类的 equal() 和 hashcode() 方法重写？
 
@@ -92,7 +98,7 @@ HashSet 内部通过 HashMap 实现，HashMap 解决碰撞使用的是拉链法�
 3. 不可抢占：别人已经占有了某项资源，你不能因为自己也需要该资源，就去把别人的资源抢过来。（别人手里的筷子你不能去抢）
 4. 循环等待：存在一个进程链，使得每个进程都占有下一个进程所需的至少一种资源。（每个人都在等相邻的下一个人放弃自己的筷子）
 
-#### 1.9.2 synchronize 的原理
+#### 1.9.2 synchronized 的原理
 
 在所修饰的方法或者方法块周围添加 monitorenter 和 monitorexit 指令，进入方法的时候需要先获取类的实例或者类的监视器。每被获取一次会加 1，以此来统计获取的次数。离开方法的时候减 1，当计数减为 0 的时候，锁被释放。
 
@@ -114,7 +120,7 @@ HashSet 内部通过 HashMap 实现，HashMap 解决碰撞使用的是拉链法�
 
 #### 
 
-### 2.1 并发容器：并发集合了解哪些
+### 2.1 并发类：并发集合了解哪些
 
 1. ConcurrentHashMap：线程安全的 HashMap，对桶进行加锁，降低锁粒度提升性能。
 2. ConcurrentSkipListMap：跳表，自行了解，给跪了……
