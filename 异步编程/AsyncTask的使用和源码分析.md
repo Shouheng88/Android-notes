@@ -10,7 +10,7 @@ AsyncTask 用来在后台线程中执行任务，当任务执行完毕之后将�
 
 一种典型的使用方法如下：
 
-```
+```java
 private class DownloadFilesTask extends AsyncTask<URL, Integer, Long> {
     
     @Override
@@ -41,7 +41,9 @@ private class DownloadFilesTask extends AsyncTask<URL, Integer, Long> {
 
 然后，我们可以用下面的方式来使用它：
 
+```java
     new DownloadFilesTask().execute(url1, url2, url3);
+```
 
 使用AsyncTask的时候要注意以下几点内容：
 
@@ -54,7 +56,9 @@ private class DownloadFilesTask extends AsyncTask<URL, Integer, Long> {
 Android 1.6 之前，AsyncTask 是**串行**执行任务的；1.6 采用线程池处理**并行**任务；从 3.0 开始，又采用一个线程来**串行**执行任务。
 3.0 之后可以用 `executeOnExecutor()` 来并行地执行任务，如果我们希望在3.0之后能并行地执行上面的任务，那么我们应该这样去写：
 
+```java
     new DownloadFilesTask().executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, url1, url2, url3);
+```
 
 这里的 `AsyncTask.THREAD_POOL_EXECUTOR` 是 AsyncTask 内部定义的一个线程池，我们可以使用它来将 AsyncTask 设置成并行的。
 
@@ -68,6 +72,7 @@ Android 1.6 之前，AsyncTask 是**串行**执行任务的；1.6 采用线程�
 2. 初始化一个 WorkerRunnable 对象 mWorker。它是一个 `WorkerRunnable` 类型的实例，而 `WorkerRunnable` 又继承自 `Callable`，因此它是一个可以被执行的对象。我们会把在该对象中回调 `doInBackground()` 来将我们的业务逻辑放在线程池中执行。
 3. 初始化一个 FutureTask 对象 mFuture。该对象包装了 `mWorker` 并且当 `mWorker` 执行完毕之后会调用它的 `postResultIfNotInvoked()` 方法来通知主线程（不论任务已经执行完毕还是被取消了，都会调用这个方法）。
 
+```java
     public AsyncTask(@Nullable Looper callbackLooper) {
         // 1. 初始化用来发送消息的 Handler
         mHandler = callbackLooper == null || callbackLooper == Looper.getMainLooper()
@@ -112,6 +117,7 @@ Android 1.6 之前，AsyncTask 是**串行**执行任务的；1.6 采用线程�
             }
         };
     }
+```
 
 当这样设置完毕之后，我们就可以使用 `execute()` 方法来开始执行任务了。
 
@@ -119,6 +125,7 @@ Android 1.6 之前，AsyncTask 是**串行**执行任务的；1.6 采用线程�
 
 我们从 `execute()` 方法开始分析 AsyncTask，
 
+```java
     @MainThread
     public final AsyncTask<Params, Progress, Result> execute(Params... params) {
         return executeOnExecutor(sDefaultExecutor, params);
@@ -133,11 +140,12 @@ Android 1.6 之前，AsyncTask 是**串行**执行任务的；1.6 采用线程�
             }
         }
         mStatus = Status.RUNNING;
-        onPreExecute(); // 2.回调生命周期方法
-        mWorker.mParams = params; // 3.赋值给可执行的对象 WorkerRunnable
-        exec.execute(mFuture); // 4.在线程池中执行任务
+        onPreExecute();             // 2.回调生命周期方法
+        mWorker.mParams = params;   // 3.赋值给可执行的对象 WorkerRunnable
+        exec.execute(mFuture);      // 4.在线程池中执行任务
         return this;
     }
+```
 
 当我们调用 AsyncTask 的 `execute()` 方法的时候会立即调用它的 `executeOnExecutor()` 方法。这里传入了两个参数，分别是一个 `Executor` 和任务的参数 `params`。从上面我们可以看出，当直接调用 execute() 方法的时候会使用默认的线程池 `sDefaultExecutor`，而当我们指定了线程池之后，会使用我们指定的线程池来执行任务。
 
@@ -145,6 +153,7 @@ Android 1.6 之前，AsyncTask 是**串行**执行任务的；1.6 采用线程�
 
 当我们不指定任何线程池的时候使用的 `sDefaultExecutor` 是一个串行的线程池，它的定义如下：
 
+```java
     public static final Executor SERIAL_EXECUTOR = new SerialExecutor();
     private static volatile Executor sDefaultExecutor = SERIAL_EXECUTOR;
 
@@ -177,11 +186,13 @@ Android 1.6 之前，AsyncTask 是**串行**执行任务的；1.6 采用线程�
             }
         }
     }
+```
 
 从上面我们可以看出，我们添加到线程池中的任务实际上并没有直接交给线程池来执行，而是对其进行了处理之后才执行的，SerialExecutor 通过内部维护了双端队列，每当一个 AsyncTask 调用 `execute()` 方法的时候都会被放在该队列当中进行排队。如果当前没有正在执行的任务，那么就从队列中取一个任务交给 `THREAD_POOL_EXECUTOR` 执行；当一个任务执行完毕之后又会调用 `scheduleNext()` 取下一个任务执行。也就是说，实际上 `sDefaultExecutor` 在这里只是起了一个任务调度的作用，任务最终还是交给 `THREAD_POOL_EXECUTOR` 执行的。
 
 这里的`THREAD_POOL_EXECUTOR`也是一个线程池，它在静态代码块中被初始化：
 
+```java
     static {
         // 使用指定的参数创建一个线程池
         ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(
@@ -190,6 +201,7 @@ Android 1.6 之前，AsyncTask 是**串行**执行任务的；1.6 采用线程�
         threadPoolExecutor.allowCoreThreadTimeOut(true);
         THREAD_POOL_EXECUTOR = threadPoolExecutor;
     }
+```
 
 我们也可以直接将这个静态的线程池作为我们任务执行的线程池而不是放在上面的队列中被串行地执行。
 
@@ -197,15 +209,18 @@ Android 1.6 之前，AsyncTask 是**串行**执行任务的；1.6 采用线程�
 
 上面的 `WorkerRunnable` 中已经用到了 `postResult` 方法，它用来将任务执行的结果发送给 `Handler`：
 
+```java
     private Result postResult(Result result) {
         @SuppressWarnings("unchecked")
         Message message = mHandler.obtainMessage(MESSAGE_POST_RESULT, new AsyncTaskResult<Result>(this, result));
         message.sendToTarget();
         return result;
     }
+```
 
 `mHandler` 会在创建 AsyncTask 的时候初始化。我们可以通过 AsyncTask 的构造方法传入 Handler 和 Looper 来指定该对象所在的线程。当我们没有指定的时候，会使用 AsyncTask 内部的 `InternalHandler` 创建 `Handler`：
 
+```java
     private final Handler mHandler;
 
     public AsyncTask(@Nullable Looper callbackLooper) {
@@ -239,6 +254,7 @@ Android 1.6 之前，AsyncTask 是**串行**执行任务的；1.6 采用线程�
             }
         }
     }
+```
 
 ## 3、总结
 
