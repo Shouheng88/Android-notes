@@ -1,22 +1,16 @@
-## JVM
+链接们：
 
-- [ ] 谈谈类加载器classloader
-- [ ] 动态加载
-- [ ] GC回收策略
-- [ ] Java中对象的生命周期
-- [ ] 类加载机制，双亲委派模型
-- [ ] JVM 内存区域 开线程影响哪块内存
-- [ ] 垃圾收集机制 对象创建，新生代与老年代
-- [ ] JVM内存模型
-- [ ] 垃圾回收机制与调用System.gc()区别
-- [ ] 软引用、弱引用区别
-- [ ] 垃圾回收
-- [ ] java四中引用
-- [ ] 垃圾收集器
-- [ ] 强引用置为null，会不会被回收？
-- [ ] Java中内存区域与垃圾回收机制
-- [ ] OOM，内存泄漏
-- [ ] JVM内存模型，内存区域
+[11](https://www.jianshu.com/p/a2bbd8565a64)    
+
+[22](https://blog.csdn.net/WHB20081815/article/details/74436204)
+
+[android面试题-与IPC机制相关面试题](https://blog.csdn.net/mwq384807683/article/details/70313632)
+
+[分享一份非常强势的Android面试题](http://www.jcodecraeer.com/plus/view.php?aid=12303)    
+
+[Android面试一天一题](https://blog.csdn.net/wo_ha/article/details/79729873)
+
+[2018年Android面试题含答案--适合中高级（上）](https://www.cnblogs.com/huangjialin/p/8657565.html)
 
 ## Android系统
 
@@ -167,14 +161,6 @@ AsyncTask 的源码就是将一个任务封装成 Runnable 之后放进线程池
 - [ ] Activity 与 Service 通信的方式
 - [ ] Activity 之间的通信方式
 
-## 网络
-
-- [ ] Https 请求慢的解决办法，DNS，携带数据，直接访问IP
-- [ ] TCP/UDP 的区别
-- [ ] https 相关，如何验证证书的合法性，https 中哪里用了对称加密，哪里用了非对称加密，对加密算法（如RSA）等是否有了解
-- [ ] TCP 与 UDP 区别与应用（三次握手和四次挥手）涉及到部分细节（如 client 如何确定自己发送的消息被 server 收到） HTTP 相关 提到过 Websocket 问了 WebSocket 相关以及与socket的区别
-- [ ] 多线程断点续传原理
-
 ## 算法
 
 - [ ] 排序，快速排序的实现
@@ -250,13 +236,6 @@ PMW WMS AMW 相关的东西
 3. RV 优化
 4. 其他的优化
 5. 逻辑优化
-
-
-## 网络
-
-TCP UDP HTTP HTTP2 HTTPS
-
-以及 HTTP 的各种概念
 
 ## 项目相关
 
