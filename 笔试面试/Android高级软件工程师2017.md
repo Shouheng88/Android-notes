@@ -12,6 +12,8 @@
 
 [2018年Android面试题含答案--适合中高级（上）](https://www.cnblogs.com/huangjialin/p/8657565.html)
 
+[Android-Interview](https://github.com/android-exchange/Android-Interview)
+
 ## Android系统
 
 ## 1、四大组件
@@ -37,6 +39,7 @@
 1. **AsyncTask 机制，如何取消 AsyncTask**
 2. **多线程（关于 AsyncTask 缺陷引发的思考）**
 3. **Asynctask 有什么优缺点**
+- AsyncTask 机制、原理及不足？
 
 AsyncTask 是 Android 提供的用来执行异步操作的 API，我们可以通过它来执行异步操作，并在得到结果之后将结果放在主线程当中进行后续处理。
 
@@ -184,27 +187,6 @@ AsyncTask 的源码就是将一个任务封装成 Runnable 之后放进线程池
 - [ ] 数据结构中堆的概念，堆排序
 
 常见的算法题！！！！
-
-## 第三方库
-
-- [ ] 网络请求缓存处理，okhttp如何处理网络缓存的
-- [ ] RxJava的作用，与平时使用的异步操作来比，优势
-- [ ] RxJava的作用，优缺点
-- [ ] Glide源码？
-- [ ] okhttp源码？
-- [ ] RxJava简介及其源码解读？
-- [ ] glide 使用什么缓存？
-- [ ] Glide 内存缓存如何控制大小？
-- [ ] 用到的一些开源框架，介绍一个看过源码的，内部实现过程
-- [ ] EventBus作用，实现方式，代替EventBus的方式
-
-volley 
-
-以及各种库的设计的优缺点
-
-库主要集中在 图片加载的几种库的对比，网络访问的几种库的对比
-
-EventBus 库的源码要清晰！！
 
 
 ## 设计模式
