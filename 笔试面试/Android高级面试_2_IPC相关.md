@@ -138,12 +138,6 @@ AIDL 支持的数据类型包括，1).基本数据类型；2).string 和 CharSeq
 
 Binder 是 Android 设计的一套进程间的通信机制。Linux 本身具有很多种跨进程通信方式，比如管道（Pipe）、信号（Signal）和跟踪（Trace）、插口（Socket）、消息队列（Message）、共享内存（Share Memory）和信号量（Semaphore）。之所以设计出 Binder 是因为，这几种通信机制在效率、稳定性和安全性上面无法满足 Android 系统的要求。
 
-1. Client、Server 和 Service Manager 实现在用户空间中，Binder 驱动程序实现在内核空间中；
-2. Binder 驱动程序和 ServiceManager 在 Android 平台中已经实现，开发者只需要在用户空间实现自己的 Client 和 Server；
-3. Binder 驱动程序提供设备文件 `/dev/binder` 与用户空间交互，Client、Server 和 ServiceManager 通过 open 和 ioctl 文件操作函数与 Binder 驱动程序进行通信；
-4. Client 和 Server 之间的进程间通信通过 Binder 驱动程序间接实现；
-5. ServiceManager 是一个守护进程，用来管理 Server，并向 Client 提供查询 Server 接口的能力。
-
 效率上 ：Socket 作为一款通用接口，其传输效率低，开销大，主要用在跨网络的进程间通信和本机上进程间的低速通信。消息队列和管道采用存储-转发方式，即数据先从发送方缓存区拷贝到内核开辟的缓存区中，然后再从内核缓存区拷贝到接收方缓存区，至少有两次拷贝过程。共享内存虽然无需拷贝，但控制复杂，难以使用。Binder 只需要一次数据拷贝，性能上仅次于共享内存。
 
 稳定性：Binder 基于 C|S 架构，客户端（Client）有什么需求就丢给服务端（Server）去完成，架构清晰、职责明确又相互独立，自然稳定性更好。共享内存虽然无需拷贝，但是控制负责，难以使用。从稳定性的角度讲，Binder 机制是优于内存共享的。
@@ -152,14 +146,18 @@ Binder 是 Android 设计的一套进程间的通信机制。Linux 本身具有�
 
 在 Binder 模型中共有 4 个主要角色，它们分别是：Client、Server、Binder 驱动和 ServiceManager. Binder 的整体结构是基于 C|S 结构的，以我们启动 Activity 的过程为例，每个应用都会与 AMS 进行交互，当它们拿到了 AMS 的 Binder 之后就像是拿到了网络接口一样可以进行访问。如果我们将 Binder 和网络的访问过程进行类比，那么 Server 就是服务器，Client 是客户终端，ServiceManager 是域名服务器（DNS），驱动是路由器。
 
+1. Client、Server 和 Service Manager 实现在用户空间中，Binder 驱动程序实现在内核空间中；
+2. Binder 驱动程序和 ServiceManager 在 Android 平台中已经实现，开发者只需要在用户空间实现自己的 Client 和 Server；
+3. Binder 驱动程序提供设备文件 `/dev/binder` 与用户空间交互，Client、Server 和 ServiceManager 通过 open 和 ioctl 文件操作函数与 Binder 驱动程序进行通信；
+4. Client 和 Server 之间的进程间通信通过 Binder 驱动程序间接实现；
+5. ServiceManager 是一个守护进程，用来管理 Server，并向 Client 提供查询 Server 接口的能力。
+
 系统启动的 init 进程通过解析 init.rc 文件创建 ServiceManager. 此时会，先打开 Binder 驱动，注册 ServiceManager 成为上下文，最后启动 Binder 循环。当使用到某个服务的时候，比如 AMS 时，会先根据它的字符串名称到缓冲当中去取，拿不到的话就从远程获取。这里的 ServiceManager 也是一种服务。
 
 1. 客户端首先获取服务器端的代理对象。所谓的代理对象实际上就是在客户端建立一个服务端的“引用”，该代理对象具有服务端的功能，使其在客户端访问服务端的方法就像访问本地方法一样。
 2. 客户端通过调用服务器代理对象的方式向服务器端发送请求。
 3. 代理对象将用户请求通过 Binder 驱动发送到服务器进程。
 4. 服务器进程处理用户请求，并通过 Binder 驱动返回处理结果给客户端的服务器代理对象。
-
-客户端收到服务端的返回结果。
 
 Binder 高效的原因，当两个进程之间需要通信的时候，Binder 驱动会在两个进程之间建立两个映射关系：内核缓存区和内核中数据接收缓存区之间的映射关系，以及内核中数据接收缓存区和接收进程用户空间地址的映射关系。这样，当把数据从 1 个用户空间拷贝到内核缓冲区的时候，就相当于拷贝到了另一个用户空间中。这样只需要做一次拷贝，省去了内核中暂存这个步骤，提升了一倍的性能。实现内存映射靠的就是上面的 `mmap()` 函数。
 

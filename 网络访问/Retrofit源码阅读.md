@@ -8,33 +8,41 @@ Retrofit 也是 Square 发布的一个开源的库，它是一个类型安全的
 
 Retrofit 设计的一个好的地方就是它把我们上面提到的 “请求适配器” 和 “类型转换器” 使用策略模式解耦出来。用户可以根据自己的需求通过实现指定的接口来自定义自己的类型转换器。所以，当我们使用 Gson 进行转换和 RxJava2 进行适配的时候，就需要指定下面三个依赖：
 
+```groovy
     api 'com.squareup.retrofit2:retrofit:2.4.0'
     api 'com.squareup.retrofit2:converter-gson:2.4.0'
     api 'com.squareup.retrofit2:adapter-rxjava2:2.4.0'
+```
 
 然后，我们需要根据自己的 API 接口的信息，在代码里用一个接口来对该 API 进行声明：
 
-	public interface WXInfoService {
-	    @GET("/sns/userinfo")
-	    Observable<WXUserInfo> getWXUserInfo(
-            @Query("access_token") String accessToken, @Query("openid") String openId);
-	}
+```java
+public interface WXInfoService {
+	@GET("/sns/userinfo")
+	Observable<WXUserInfo> getWXUserInfo(
+        @Query("access_token") String accessToken, @Query("openid") String openId);
+}
+```
 
 这里的 `WXUserInfo` 是由该 API 接口返回的 Json 生成的 Java 对象。然后，我们可以像下面这样获取一个该接口的代理对象：
 
+```java
 	WXInfoService wXInfoService = new Retrofit.Builder()
         .baseUrl("https://api.weixin.qq.com/")
         .addConverterFactory(GsonConverterFactory.create())
         .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
         .client(okHttpClient)
         .build().create(WXInfoService.class);
+```
 
 然后，我们就可以使用该对象并调用其方法来获取接口返回的信息了：
 
+```java
     Disposable disposable = wxInfoService.getWXUserInfo(accessToken, openId)
         .subscribeOn(Schedulers.io())
         .observeOn(AndroidSchedulers.mainThread())
         .subscribe(wxUserInfo -> { /*...拿到结果之后进行处理...*/ });
+```
 
 上面我们只使用了 Retrofit 最基础的 `GET` 接口。当然，Retrofit 本身的功能远比这要丰富得多，关于其更多的使用，可以参考其官方的文档。
 
@@ -44,6 +52,7 @@ Retrofit 设计的一个好的地方就是它把我们上面提到的 “请求�
 
 当我们使用 `Retrofit.Builder` 的 `create()` 方法获取一个 `WXInfoService` 实例的时候，实际返回的是经过代理之后的对象。该方法内部会调用 `Proxy` 的静态方法 `newProxyInstance()` 来得到一个代理之后的实例。为了说明这个方法的作用，我们写了一个例子：
 
+```java
     public static void main(String...args) {
         Service service = getProxy(Service.class);
         String aJson = service.getAInfo();
@@ -64,6 +73,7 @@ Retrofit 设计的一个好的地方就是它把我们上面提到的 “请求�
         };
         return (T) Proxy.newProxyInstance(service.getClassLoader(), new Class<?>[]{service}, h);
     }
+```
 
     该程序的输出结果：
 
@@ -74,9 +84,11 @@ Retrofit 设计的一个好的地方就是它把我们上面提到的 “请求�
 
 上面的效果近似于我们使用 Retrofit 访问接口的过程。为了说明这个过程中发生了什么，我们需要先了解一下这里的 `newProxyInstance()` 方法：
 
+```java
     public static Object newProxyInstance(ClassLoader loader, Class<?>[] interfaces, InvocationHandler h) {
         // ...
     }
+```
 
 该方法接收三个参数：
 
@@ -90,9 +102,9 @@ Retrofit 设计的一个好的地方就是它把我们上面提到的 “请求�
 
 该方法也接收三个参数，第一个是触发该方法的代理实例；第二个是触发的方法；第三个是触发的方法的参数。`invoke()` 方法的返回结果会作为代理类的方法执行的结果。
 
-所以，当了解了 `newProxyInstance()` 方法的定义之后，我们可以做如下总结：当我们使用 `newProxyInstance()` 方法获取了一个代理实例 `service` 并调用其 `getAInfo()` 方法之后，该方法的信息和参数信息会分别通过 `method` 和 `args` 传入到 `h` 的 `invoke()` 中。所以，最终的效果就是，当我们调用 `service` 的 `getAInfo()` 时候会触发 `h` 的 `invoke()`。在 `invoke()` 方法中我们根据 `method` 得知触发的方法是 `getAInfo`。于是，我们把它对应的请求从 `invoke()` 方法中返回，并作为 `service.getAInfo()` 的返回结果。
+所以，当了解了 `newProxyInstance()` 方法的定义之后，我们可以做如下总结：当我们使用 `newProxyInstance()` 方法获取了一个代理实例 service 并调用其 `getAInfo()` 方法之后，该方法的信息和参数信息会分别通过 method 和 args 传入到 h 的 `invoke()` 中。所以，最终的效果就是，当我们调用 service 的 `getAInfo()` 时候会触发 h 的 `invoke()`。在 `invoke()` 方法中我们根据 method 得知触发的方法是 `getAInfo`。于是，我们把它对应的请求从 `invoke()` 方法中返回，并作为 `service.getAInfo()` 的返回结果。
 
-所以，我们可以总结 Retrofit 的大致工作流程：当我们获取了接口的代理实例，并调用它的 `getWXUserInfo()` 方法之后，该方法的请求参数会传递到代理类的 `InvocationHandler.invoke()` 方法中。然后在该方法中，我们将这些信息转换成 OkHttp 的 `Request` 并使用 OkHttp 进行访问。从网络中拿到结果之后，我们使用 “转换器” 将响应转换成接口指定的 Java 类型。
+所以，我们可以总结 Retrofit 的大致工作流程：当我们获取了接口的代理实例，并调用它的 `getWXUserInfo()` 方法之后，该方法的请求参数会传递到代理类的 `InvocationHandler.invoke()` 方法中。然后在该方法中，我们将这些信息转换成 OkHttp 的 Request 并使用 OkHttp 进行访问。从网络中拿到结果之后，我们使用 “转换器” 将响应转换成接口指定的 Java 类型。
 
 上面是 Retrofit 请求处理的基本流程，下面我们看一下 Retrofit 的代理方法内部究竟发生了什么。
 
