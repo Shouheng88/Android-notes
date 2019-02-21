@@ -161,6 +161,8 @@ Binder 是 Android 设计的一套进程间的通信机制。Linux 本身具有�
 
 Binder 高效的原因，当两个进程之间需要通信的时候，Binder 驱动会在两个进程之间建立两个映射关系：内核缓存区和内核中数据接收缓存区之间的映射关系，以及内核中数据接收缓存区和接收进程用户空间地址的映射关系。这样，当把数据从 1 个用户空间拷贝到内核缓冲区的时候，就相当于拷贝到了另一个用户空间中。这样只需要做一次拷贝，省去了内核中暂存这个步骤，提升了一倍的性能。实现内存映射靠的就是上面的 `mmap()` 函数。
 
+*(了解 Binder 相关的知识可以参考我的文章：[《Android 系统源码-2：Binder 通信机制》](https://juejin.im/post/5c4861a0e51d45518d470805))*
+
 ### 序列化
 
 - **序列化的作用，以及 Android 两种序列化的区别**
@@ -198,4 +200,4 @@ Android 系统启动的时候会先启动 Zygote 进程，当我们需要创建�
 
 ![一对一的线程模型](https://img-blog.csdn.net/20170608094427710?watermark/2/text/aHR0cDovL2Jsb2cuY3Nkbi5uZXQvamF2YXplamlhbg==/font/5a6L5L2T/fontsize/400/fill/I0JBQkFCMA==/dissolve/70/gravity/SouthEast)
 
-
+*（了解 Android 系统启动过程和虚拟机内存模型 JMM，请参考我的文章：[Android 系统源码-1：Android 系统启动流程源码分析](https://juejin.im/post/5c4471e56fb9a04a027aa8ac) 和 [JVM扫盲-3：虚拟机内存模型与高效并发](https://juejin.im/post/5b4f48e75188251b1b448aa0)）*

@@ -14,60 +14,15 @@
 
 [Android-Interview](https://github.com/android-exchange/Android-Interview)
 
-## Android系统
-
-## 1、四大组件
-
-### 1.1 Activity
-
-在两个 Activity 之间传递对象还需要注意什么呢？
-对象的大小，对象的大小，对象的大小！！！
-重要的事情说三遍，一定要注意对象的大小。Intent 中的 Bundle 是使用 Binder 机制进行数据传送的。能使用的 Binder 的缓冲区是有大小限制的（有些手机是 2 M），而一个进程默认有 16 个 Binder 线程，所以一个线程能占用的缓冲区就更小了（ 有人以前做过测试，大约一个线程可以占用 128 KB）。所以当你看到 The Binder transaction failed because it was too large 这类 TransactionTooLargeException 异常时，你应该知道怎么解决了。
-
-### 1.2 Service
-
-### 1.3 Broadcast
-
-### 1.4 ContentProvider
-
-### 1.5 Fragment
-
-## 2、API 源码
-
-### 2.1 AsyncTask
-
-1. **AsyncTask 机制，如何取消 AsyncTask**
-2. **多线程（关于 AsyncTask 缺陷引发的思考）**
-3. **Asynctask 有什么优缺点**
-- AsyncTask 机制、原理及不足？
-
-AsyncTask 是 Android 提供的用来执行异步操作的 API，我们可以通过它来执行异步操作，并在得到结果之后将结果放在主线程当中进行后续处理。
-
-AsyncTask 的缺点是在使用多个异步操作和并需要进行 Ui 变更时，就变得复杂起来（会导致多个 AsyncTask 进行嵌套）。如果有多个地方需要用到 AsyncTask，可能需要定义多个 AsyncTask 的实现。
-
-如果 AsyncTask 以一个非静态的内部类的形式声明在 Activity 中，那么它会持有 Activity 的匿名引用，如果销毁 Activity 时 AsyncTask 还在执行异步任务的话，Activity 就不能销毁，会造成内存泄漏。解决方式是，要么将 AsyncTask 定义成静态内部类，要么在 Activity 销毁的时候调用 `cancel()` 方法取消 AsyncTask.在屏幕旋转或 Activity 意外结束时，Activity 被创建，而 AsyncTask 会拥有之前 Activity 的引用，会导致结果丢失。
-
-AsyncTask 在 1.6 之前是串行的，1.6 之后是并行的，3.0 之后又改成了串行的。不过我们可以通过调用 `executeOnExecutor()` 方法并传入一个线程池，来让 AsyncTask 在某个线程池中并行执行任务。
-
-AsyncTask 的源码就是将一个任务封装成 Runnable 之后放进线程池当中执行，执行完毕之后调用主线程的 Handler 发送消息到主线程当中进行处理。任务在默认线程池当中执行的时候，会被加入到一个双端队列中执行，执行完一个之后再执行下一个，以此来实现任务的串行执行。
 
 
-- [ ] 热修复,插件化
-- [ ] 性能优化，怎么保证应用启动不卡顿
-- [x] SP是进程同步的吗?有什么方法做到同步
 
-    非进程同步，使用 MODE_MULTI_PROCESS 可以设置进程同步的，但是不可靠，原理是将数据加载到内存中，写入之前强制读取，当 commit 高频的时候仍然会造成数据不同步。    
-    使用 ContentProvider 来模拟 SharedPreferences. SP 的增删对应数据库的增删。
 
-- [ ] 介绍下 SurfView
-- [ ] 图片加载原理
-- [ ] 模块化实现（好处，原因）
-- [ ] 视频加密传输
-- [ ] 统计启动时长,标准
-- [ ] 如何保持应用的稳定性
-- [ ] BroadcastReceiver，LocalBroadcastReceiver 区别
-- [ ] Android 事件分发机制
-- [ ] App 启动流程，从点击桌面开始
+
+
+
+
+
 - [ ] 画出 Android 的大体架构图
 - [ ] 描述清点击 Android Studio 的 build 按钮后发生了什么
 - [ ] 大体说清一个应用程序安装到手机上时发生了什么
@@ -141,28 +96,13 @@ AsyncTask 的源码就是将一个任务封装成 Runnable 之后放进线程池
 
 内存优化    
 
-
-- [ ] 内存泄露如何产生？
-- [ ] 适配器模式，装饰者模式，外观模式的异同？
-- [ ] 如何保证线程安全？
-- [ ] 事件传递机制的介绍
-- [ ] View 事件传递
-- [ ] activity 栈
-- [ ] 封装 view 的时候怎么知道 view 的大小
-- [ ] 怎么启动 service，service 和 activity 怎么进行数据交互
-- [ ] 下拉状态栏是不是影响 activity 的生命周期，如果在 onStop 的时候做了网络请求，onResume 的时候怎么恢复
-- [ ] view 渲染
-- [ ] singleTask 启动模式
-- [ ] 消息机制实现
-- [ ] App 启动崩溃异常捕捉
 - [ ] ListView 的优化
 - [ ] Android 进程分类
 - [ ] 前台切换到后台，然后再回到前台，Activity 生命周期回调方法。弹出 Dialog，生命值周期回调方法。
 - [ ] RecycleView的 使用，原理，RecycleView 优化
-- [ ] ANR 的原因
-- [ ] Service 的开启方式
-- [ ] Activity 与 Service 通信的方式
-- [ ] Activity 之间的通信方式
+
+
+
 
 ## 算法
 
