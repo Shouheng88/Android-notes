@@ -22,7 +22,17 @@
 
 - Java 中对象的生命周期
 
-> A
+一个类从被加载到虚拟机内存到卸载的整个生命周期包括：`加载-验证-准备-解析-初始化-使用-卸载` 7 个阶段。其中 `验证-准备-解析` 3 个阶段称为连接。
+
+**加载**发生在类被使用的时候，如果一个类之前没有被加载，那么就会执行加载逻辑，比如当使用new 创建类、调用静态类对象和使用反射的时候等。加载过程主要工作包括：1). 从磁盘或者网络中获取类的二进制字节流；2). 将该字节流的静态存储结构转换为方法取的运行时数据结构；3). 在内存中生成表示这个类的 Class 对象，作为方法区访问该类的各种数据结构的入口。
+
+**验证**阶段会对加载的字节流中的信息进行各种校验以确保它符合JVM的要求。
+
+**准备**阶段会正式为类变量分配内存并设置类变量的初始值。注意这里分配内存的只包括类变量，也就是静态的变量（实例变量会在对象实例化的时候分配在堆上），并且这里的设置初始值是指‘零值’，比如int类型的会被初始化为 0，引用类型的会被初始化为 null，即使你在代码中为其赋了值。
+
+**解析**阶段是将常量池中的符号引用替换为直接引用的过程。符号引用与虚拟机实现的布局无关，引用的目标并不一定要已经加载到内存中。各种虚拟机实现的内存布局可以各不相同，但是它们能接受的符号引用必须是一致的，只要能正确定位到它们在内存中的位置就行。直接引用可以是指向目标的指针，相对偏移量或是一个能间接定位到目标的句柄。如果有了直接引用，那引用的目标必定已经在内存中存在。
+
+**初始化**是执行类构造器 `<client>` 方法的过程。`<client>` 方法是由编译器自动收集类中的类变量的赋值操作和静态语句块中的语句合并而成的。虚拟机会保证 `<client>` 方法执行之前，父类的 `<client>` 方法已经执行完毕。
 
 - JVM 内存区域，开线程影响哪块内存
 
@@ -77,13 +87,45 @@
 
 ## 2、虚拟机执行系统
 
-- 谈谈类加载器 classloader
+- 谈谈类加载器 Classloader
 - 类加载机制，双亲委派模型
 
-> 先去研究热修复方面的内容！！！
+Android 中的类加载器与 Java 中的类加载器基本一致，都分成系统类加载器和用户自定义类加载器两种类型。Java 中的系统类加载器包括，Bootstrap 类加载器，主要用来加载 java 运行时下面的 lib 目录；拓展类加载器 ExtClassLoader，用来加载 Java 运行时的 lib 中的拓展目录；应用程序类加载器，用来加载当前程序的 ClassPath 目录下面的类。其中，引导类加载器与其他两个不同，它是在 C++ 层实现的，没有继承 ClassLoader 类，也无法获取到。
+
+Android 中的系统类加载器包括，BootClassLoader, 用来加载常用的启动类；DexClassLoader 用来加载 dex 及包含 dex 的压缩文件；PathClassLoader 用来加载系统类和应用程序的类。三种类加载器都是在系统启动的过程中创建的。DexClassLoader 和 PathClassLoader 都继承于 BaseDexClassLoader。区别在于调用父类构造器时，DexClassLoader 多传了一个 optimizedDirectory 参数，这个目录必须是内部存储路径，用来缓存系统创建的 Dex 文件。而 PathClassLoader 该参数为 null，只能加载内部存储目录的 Dex 文件。所以我们可以用 DexClassLoader 去加载外部的 Apk. 
+
+```java
+public DexClassLoader(String dexPath, String optimizedDirectory, String libraryPath, ClassLoader parent) {
+    super(dexPath, new File(optimizedDirectory), libraryPath, parent);
+}
+```
+
+DexClassLoader 重载了 `findClass()` 方法，在加载类时会调用其内部的 DexPathList 去加载。DexPathList 是在构造 DexClassLoader 时生成的，其内部包含了 DexFile。腾讯的 qq 空间热修复技术正是利用了 DexClassLoader 的加载机制，将需要替换的类添加到 dexElements 的前面，这样系统会使用先找到的修复过的类。
+
+```java
+    private final DexPathList pathList;
+    public BaseDexClassLoader(String dexPath, File optimizedDirectory, String libraryPath, ClassLoader parent) {
+        super(parent);
+        this.originalPath = dexPath;
+        this.pathList = new DexPathList(this, dexPath, libraryPath, optimizedDirectory);
+    }
+    @Override
+    protected Class<?> findClass(String name) throws ClassNotFoundException {
+        Class clazz = pathList.findClass(name);
+        return clazz;
+    }
+```
+
+本质上不论哪种加载器加载类的时候的都是分成两个步骤进行的，第一是使用双亲委派模型的规则从资源当中加载类的数据到内存中。通常类都被存储在各种文件中，所以这无非就是一些文件的读写操作。当将数据读取到内存当中之后会调用 `defineClass()` 方法，并返回类的类型 Class 对象。这个方法底层会调用一个 native 的方法来最终完成类的加载工作。
+
+至于双亲委派模型，这是 Java 中类加载的一种规则，比较容易理解。前提是类加载器之间存在着继承关系，那么当一个类进行加载之前会先判断这个类是否已经存在。如果已经存在，则直接返回对应的 Class 即可。如果不存在则先交给自己的父类进行加载，父类加载不到，然后自己再进行加载。这样一层层地传递下去，一个类的加载将是从父类开始到子类的过程，所以叫双亲委派模型。这种加载机制的好处是：第一，它可以避免重复加载，已经加载一次的类就无需再次加载；第二，更加安全，因为类优先交给父类进行加载，按照传递规则，也就是先交给系统的类进行加载。那么如果有人想要伪造一个 Object 类型，想要蒙混过关的话，显然是逃不过虚拟机的法眼了。
+
+*Android 的 ClassLoader 定义在 Dalivk 目录下面，这里是它在 AOSP 中的位置：[dalvik-system](https://android.googlesource.com/platform/libcore-snapshot/+/ics-mr1/dalvik/src/main/java/dalvik/system)*
 
 - 动态加载
 - 对动态加载（OSGI）的了解？
+
+OSGI 一种用来实现 Java 模块化的方式，在 2010 年左右的时候比较火，现在用得比较少了。
 
 ## 3、内存模型
 
@@ -108,6 +150,7 @@ Java 内存模型，即 Java Memory Model，简称 `JMM`，它是一种抽象的
 ## 4、Android 虚拟机
 
 - ART 和 Dalvik (DVM) 的区别
+- 对 Dalvik、ART 虚拟机有基本的了解
 
 ART 4.4 时发布，5.0 之后默认使用 ART. 
 
@@ -129,4 +172,6 @@ Zygote 是一个 DVM 进程，当需要创建一个应用程序时，Zygote 通�
 - DVM 与 ART 的诞生
 
 init 进程启动 Zygote 时会调用 `app_main.cpp`，它会调用 AndroidRuntime 的 `start()` 函数，在其中通过 `startVM()` 方法启动虚拟机。在启动虚拟机之前会通过读取系统的属性，判断使用 DVM 还是 ART 虚拟机实例。
+
+
 

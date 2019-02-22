@@ -17,6 +17,7 @@ IPC 就是指跨进程通信。IPC 相关的内容，涉及的主要有：
 - 进程间通信的机制
 - AIDL 机制
 - Bundle 机制
+- 多进程场景遇见过么？
 
 IPC 就是指进程之间的通信机制，在 Android 系统中启动 Activity/Service 等都涉及跨进程调用的过程。
 
@@ -199,5 +200,11 @@ Android 系统启动的时候会先启动 Zygote 进程，当我们需要创建�
 线程是 CPU 调度的最小单元，一个进程可包含多个线程。Java 线程的实现是基于一对一的线程模型，即通过语言级别层面程序去间接调用系统的内核线程。内核线程由操作系统内核支持，由操作系统内核来完成线程切换，内核通过操作调度器进而对线程执行调度，并将线程的任务映射到各个处理器上。由于我们编写的多线程程序属于语言层面的，程序一般不会直接去调用内核线程，取而代之的是一种轻量级的进程(Light Weight Process)，也是通常意义上的线程。由于每个轻量级进程都会映射到一个内核线程，因此我们可以通过轻量级进程调用内核线程，进而由操作系统内核将任务映射到各个处理器。这种轻量级进程与内核线程间1对1的关系就称为一对一的线程模型。
 
 ![一对一的线程模型](https://img-blog.csdn.net/20170608094427710?watermark/2/text/aHR0cDovL2Jsb2cuY3Nkbi5uZXQvamF2YXplamlhbg==/font/5a6L5L2T/fontsize/400/fill/I0JBQkFCMA==/dissolve/70/gravity/SouthEast)
+
+- Android 中进程内存的分配，能不能自己分配定额内存
+- 进程和 Application 的生命周期
+- 为什么要有线程，而不是仅仅用进程？
+- 进程调度
+
 
 *（了解 Android 系统启动过程和虚拟机内存模型 JMM，请参考我的文章：[Android 系统源码-1：Android 系统启动流程源码分析](https://juejin.im/post/5c4471e56fb9a04a027aa8ac) 和 [JVM扫盲-3：虚拟机内存模型与高效并发](https://juejin.im/post/5b4f48e75188251b1b448aa0)）*

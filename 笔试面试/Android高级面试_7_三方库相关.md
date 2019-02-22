@@ -114,6 +114,8 @@ Volley 封装了访问网络的一些操作，但是底层在 Android 2.3 及以
 Glide 的缓存控制，可以在自定义 GlideModule 的时候，通过构建者的方法对其进行配置。然后，可以在每次请求的时候，使用请求的构建者方法对本次请求的缓存策略进行配置。
 
 - 对 Bitmap 对象的了解？
+- Bitmap recycler 相关
+- Bitmap 使用时候注意什么？
 
 Bitmap 占用内存大小的计算，首先可以通过 `getByteCount()` 和 `getAllocationByteCount()` 获取到占用内存的大小。Bitmap 占用内存的大小可以通过 `像素数量*每个像素占用的字节` 得到。每个像素占用的字节可以通过枚举 Config 指定，常用的有下面四种：
 
@@ -153,11 +155,12 @@ Android 平台上面图片压缩有两种方式：`质量压缩`和`尺寸压缩
 
 Android 中加载图片使用的就是 BitmapFactory 的一系列 `decode()` 方法，包括 Glide 内部也是从各种流中获取到一个 Bitmap. 这些 `decode()` 方法会调用 Native 的方法。Native 方法中的实现引用了 Skia 来实现。Skia 是谷歌的一个 2D 图像库，用 C++ 实现。它提供了适用于多种应用平台的公共 API. 并作为 Chrome, Android 等的图片处理引擎。
 
-Skia本身提供了基本的画图和编解码功能，它同时还挂载了其他第三方编解码库，例如：libpng.so、libjpeg.so、libgif.so. 指定类型的图片将交给指定类型的编码库来完成。
+Skia 本身提供了基本的画图和编解码功能，它同时还挂载了其他第三方编解码库，例如：libpng.so、libjpeg.so、libgif.so. 指定类型的图片将交给指定类型的编码库来完成。
 
 Skia 的资料：[官方网址](https://skia.org/)、[Github 地址](https://github.com/google/skia) 以及[在 Android 源码中的位置](https://android.googlesource.com/platform/external/skia/)。
 
 - 大图加载
+- 图片加载库相关，Bitmap 如何处理大图，如一张 30M 的大图，如何预防 OOM
 
 使用 BitmapRegionDecoder 来部分加载图片。加载图片的时候调用下面的方法即可，
 
@@ -240,6 +243,8 @@ EventBus.getDefault().post(MessageWrap.getInstance(msg));
 
 - 数据库框架对比和源码分析？
 - SQLite 数据库升级，数据迁移问题？
+- SQLite 升级，增加字段的语句
+- [ ] 数据库数据迁移问题
 
 数据库框架：Room 出现之前使用最多的是 OrmLite 和 GreenDAO. ORMLite 和 JavaWeb 框架中的 Hibernate 相似，都是使用注解的方式来标注数据库中的表、字段、关联关系的，这也是 ORMLite 的工作原理：ORMLite 是基于反射机制工作的，然而这也成为了 ORMLite 的一个非常致命的缺点，性能不好。因此，如果是对想能要求不高的项目，我们可以考虑使用 ORMLite，而如果项目对性能要求较高，我们可以考虑使用 GreenDAO. 
 
