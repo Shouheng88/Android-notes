@@ -244,7 +244,7 @@ EventBus.getDefault().post(MessageWrap.getInstance(msg));
 - 数据库框架对比和源码分析？
 - SQLite 数据库升级，数据迁移问题？
 - SQLite 升级，增加字段的语句
-- [ ] 数据库数据迁移问题
+- 数据库数据迁移问题
 
 数据库框架：Room 出现之前使用最多的是 OrmLite 和 GreenDAO. ORMLite 和 JavaWeb 框架中的 Hibernate 相似，都是使用注解的方式来标注数据库中的表、字段、关联关系的，这也是 ORMLite 的工作原理：ORMLite 是基于反射机制工作的，然而这也成为了 ORMLite 的一个非常致命的缺点，性能不好。因此，如果是对想能要求不高的项目，我们可以考虑使用 ORMLite，而如果项目对性能要求较高，我们可以考虑使用 GreenDAO. 
 
