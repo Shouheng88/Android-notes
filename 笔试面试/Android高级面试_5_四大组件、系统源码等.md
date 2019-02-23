@@ -201,24 +201,54 @@ TextureView 在 Andriod 4.0 之后的 API 中才能使用，并且必须在硬�
 - View 事件传递
 - 触摸事件的分发？
 
+Activity 的层级：`Activity->PhoneWindow->DecorView`
 
+当触摸事件发生的时候，首先会被 Activity 接收到，然后该 Activity 会通过其内部的 `dispatchTouchEvent(MotionEvent)` 将事件传递给内部的 `PhoneWindow`；接着 `PhoneWindow` 会把事件交给 `DecorView`，再由 `DecorView` 交给根 `ViewGroup`。剩下的事件传递就只在 `ViewGroup` 和 `View` 之间进行。
 
-- View 渲染
+事件分发机制本质上是一个`深度优先`的遍历算法。事件分发机制的核心代码：
 
-- 封装 view 的时候怎么知道 view 的大小
-- [ ] 点击事件被拦截，但是相传到下面的 view，如何操作？
+```java
+    boolean dispatchTouchEvent(MotionEvent e) {
+        boolean result;
+        if (onInterceptTouchEvent(e)) { // 父控件可以覆写并返回 true 以拦截
+            result = super.dispatchTouchEvent(e); // 调用 View 中该方法的实现
+        } else {
+            for (child in children) {
+                result = child.dispatchTouchEvent(e); // 这里的 child 分成 View 和 ViewGroup 两者情形
+                if (result) break; // 被子控件消费，停止分发
+            }
+        }
+        return result;
+    }
+```
 
-- [ ] 计算一个 view 的嵌套层级
+对于 `dispatchTouchEvent()` 方法，在 View 的默认实现中，会先交给 `onTouchEvent()` 进行处理，若它返回了 true 就消费了，否则根据触摸的类型，决定是交给 `OnClickListener` 还是 `OnLongClickListener` 继续处理。
+
+*事件分发机制和 View 的体系请参考笔者文章：[View 体系详解：坐标系、滑动、手势和事件分发机制](https://juejin.im/post/5bbb5fdce51d450e942f6be4)，整体上事件分发机制应该分成三个阶段来进行说明：1).从 Activity 到 DecorView 的过程；2).ViewGroup 中的分发的过程；3).交给 View 之后的实现过程。*
+
+- 封装 View 的时候怎么知道 View 的大小
+- 点击事件被拦截，但是想传到下面的 View，如何操作？
+- 计算一个 view 的嵌套层级
+
+按照广度优先算法进行遍历
 
 ### 2.3 列表控件
 
-- [ ] ListView 的优化
-- [ ] ListView 重用的是什么
+- ListView 的优化
+- ListView 重用的是什么
 
-- [ ] RecycleView 的使用，原理，RecycleView 优化
-- [ ] recycleview listview 的区别,性能
+ListView 默认缓存一页的 View，也就是你当前 Listview 界面上有几个 Item 可以显示,，Lstview 就缓存几个。当现实第一页的时候，由于没有一个 Item 被创建，所以第一页的 Item 的 `getView()` 方法中的第二个参数都是为 null 的。
 
-- [ ] listview 图片加载错乱的原理和解决方案
+ViewHolder 同样也是为了提高性能。就是用来在缓存使用 `findViewById()` 方法得到的控件，下次的时候可以直接使用它而不用再进行 `find` 了。
+
+*关于 ListView 的 ViewHolder 等的使用，可以参考这篇文章：[ListView 复用和优化详解](https://blog.csdn.net/u011692041/article/details/53099584)*
+
+- RecycleView 的使用，原理，RecycleView 优化
+- recycleview Listview 的区别，性能
+
+
+
+- [ ] Listview 图片加载错乱的原理和解决方案
 
 ### 2.4 其他控件
 
@@ -227,7 +257,9 @@ TextureView 在 Andriod 4.0 之后的 API 中才能使用，并且必须在硬�
 
 ### 2.5 数据存储
 
-- [ ] Android 中数据存储方式
+- Android 中数据存储方式
+
+SP，SQLite，ContentProvider，File，Server
 
 ## 3、架构相关
 
