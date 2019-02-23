@@ -205,6 +205,6 @@ Android 系统启动的时候会先启动 Zygote 进程，当我们需要创建�
 - 进程和 Application 的生命周期
 - 为什么要有线程，而不是仅仅用进程？
 - 进程调度
-
+- ndroid 进程分类
 
 *（了解 Android 系统启动过程和虚拟机内存模型 JMM，请参考我的文章：[Android 系统源码-1：Android 系统启动流程源码分析](https://juejin.im/post/5c4471e56fb9a04a027aa8ac) 和 [JVM扫盲-3：虚拟机内存模型与高效并发](https://juejin.im/post/5b4f48e75188251b1b448aa0)）*

@@ -324,7 +324,13 @@ A.subscribeActual(O)
     }
 ```
 
-因此，可以看出，在 `observeOn()` 方法中也是通过将任务放进某个 Worker 中执行来实现的，只是具体的线程将取决于 Scheduler 和 Worker 的具体实现。而 Android 中的将任务放进主线程当中去执行就是通过向主线程的 Handler 发送消息来实现的。
+因此，可以看出，在 `observeOn()` 方法中也是通过将任务放进某个 Worker 中执行来实现的，只是具体的线程将取决于 Scheduler 和 Worker 的具体实现。
+
+而 Android 中的将任务放进主线程当中去执行就是通过向主线程的 Handler 发送消息来实现的。如果按照 `subscribeOn()` 的解释，那么当 A 线程启动 B 线程执行任务，那么 B 执行完自然就到了 A 了。那么为什么 Android 中还需要向主线程中发送消息呢？我们使用下面的图来解释。
+
+![RxJava 线程切换](res/RxJava_Switch.png)
+
+`subscribeOn()` 是一个向上回调的过程，当 A 线程启动 B 线程执行任务，那么 B 执行完自然就到了 A 了，没有问题。但 `observeOn()` 是一个向下调用的过程，从上面的代码中也可以看出，它直接在线程池当中调用 `onNext()` 的时候会沿着回调相反的路线从上往下执行，因此 `observeOn()` 之后所有的逻辑在它指定的线程中执行。
 
 ## 2、总结
 
