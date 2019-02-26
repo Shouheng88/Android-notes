@@ -220,7 +220,7 @@ Heap Viewer
 
 其他借鉴办法
 
-1. 使用 BlockCanary 检测卡顿：它的原理是对 Looper 中的 loop() 方法打处的日志进行处理，通过一个自定义的日志输出 Printer 监听方法执行的开始和结束。
+1. 使用 BlockCanary 检测卡顿：它的原理是对 Looper 中的 loop() 方法打处的日志进行处理，通过一个自定义的日志输出 Printer 监听方法执行的开始和结束。（更加详细的源码分析参考这篇文章：[Android UI卡顿监测框架BlockCanary原理分析](https://www.jianshu.com/p/e58992439793)）
 2. GC 优化：减少垃圾回收的时间间隔，所以在启动的过程中不要频繁创建对象，特别是大对象，避免进行大量的字符串操作，特别是序列化跟反序列化过程。一些频繁创建的对象，例如网络库和图片库中的 Byte 数组、Buffer 可以复用。如果一些模块实在需要频繁创建对象，可以考虑移到 Native 实现。
 3. 类重排：如果我们的代码在打包的时候被放进了不同的 dex 里面，当启动的时候，如果需要用到的类分散在各个 dex 里面，那么系统要花额外的时间到各个 dex 里加载类。因此，我们可以通过类重排调整类在 Dex 中的排列顺序，把启动时用到的类放进主 dex 里。目前可以使用 ReDex 的 Interdex 调整类在 Dex 中的排列顺序。
 4. 资源文件重排：这种方案的原理时先通过测试找出程序启动过程中需要加载的资源，然后再打包的时候通过修改 7z 压缩工具将上述热点资源放在一起。这样，在系统进行资源加载的时候，这些资源将要用到的资源会一起被加载进程内存当中并缓存，减少了 IO 的次数，同时不需要从磁盘读取文件，来提高应用启动的速度。
@@ -229,9 +229,9 @@ Heap Viewer
 
 1. Network Monitor: Android Studio 内置的 Monitor工具中就有一个 Network Monitor;
 2. 抓包工具：Wireshark, Fiddler, Charlesr 等抓包工具，Android 上面的无 root 抓包工具；
-3. Stetho：Android应用的调试工具。无需Root即可通过Chrome，在Chrome Developer Tools中可视化查看应用布局，网络请求，sqlite，preference等。
-4. Gzip 压缩：使用Gzip来压缩request和response, 减少传输数据量, 从而减少流量消耗.
-5. 数据交换格式：JSON 而不是 XML，另外 Protocol Buffer是Google推出的一种数据交换格式.
+3. Stetho：Android 应用的调试工具。无需 Root 即可通过 Chrome，在 Chrome Developer Tools 中可视化查看应用布局，网络请求，SQLite，preference 等。
+4. Gzip 压缩：使用 Gzip 来压缩 request 和 response, 减少传输数据量, 从而减少流量消耗.
+5. 数据交换格式：JSON 而不是 XML，另外 Protocol Buffer 是 Google 推出的一种数据交换格式.
 6. 图片的 Size：使用 WebP 图片，修改图片大小；
 7. 弱网优化
     1. 界面先反馈, 请求延迟提交例如, 用户点赞操作, 可以直接给出界面的点赞成功的反馈, 使用JobScheduler在网络情况较好的时候打包请求.

@@ -244,6 +244,40 @@ EventBus.getDefault().post(MessageWrap.getInstance(msg));
 优势：实现线程切换更加容易，没有太多的回调
 劣势：调用栈太长
 
+- RxJava zip 操作
+
+```java
+Observable<String> a = // ... A 请求
+Observable<Integer> b =  // ... B 请求
+Observable.zip(a, b, new BiFunction<String, Integer, Object>(){
+    @Override
+    public Object apply(@NonNull String s, @NonNull Integer integer) throws Exception {
+        // 拿到了 A 请求和 B 请求的第 n 次执行的结果
+        return new Object();
+    }
+}).subscribe();
+```
+
+A 和 B 会并行在各自的子线程当中, 并且会合并到 `apply()` 方法中。它能保证 B 操作在 A 操作之前执行。我们可以使用这种方式来实现线程的控制。即当一个任务完成之后才执行另一个任务，同时它们的任务的结果可以被合并。那么合并的规则是什么呢？即那么如果 A 和 B 多次发送结果，也就是多次调用 `onNext()` 方法。此时，A 和 B 发送的结果会按照先后的顺序配对，并回调上述的 `BiFunction` 函数。
+
+- RxJava FlatMap 操作
+
+`flatMap()` 也是一种 `map()`，只是不同的是：假如传入的是一个列表，那么 `map()` 对列表的每一个元素进行变换，然后变换的元素又构成了一个集合。而 `flatMap()` 也可以对列表的每个元素进行变换，只是它变换之后的结果强制是 Observable 类型的，并且如果这些返回的 Observable 又都由列表构成，那么这些映射之后的列表将会构成一个新的列表，交给最终的 Observable. `flatMap()` 与 `contactMap()` 不同的地方是，前者会按照原始列表的顺序拼接返回的列表，而后者不会。
+
+```java
+        Observable.range(1, 5).flatMap(new Function<Integer, ObservableSource<Integer>>() {
+            @Override
+            public ObservableSource<Integer> apply(Integer integer) throws Exception {
+                return Observable.range(integer + 100, 2);
+            }
+        }).subscribe(new Consumer<Integer>() {
+            @Override
+            public void accept(Integer integer) throws Exception {
+                System.out.print(integer + " ");
+            }
+        });
+```
+
 ## 5、数据库
 
 - 数据库框架对比和源码分析？

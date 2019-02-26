@@ -157,17 +157,116 @@ ContentProvider 在 Android 中的作用是对外共享数据，提供了数据�
 
 - **Q：Application 和 Activity 的 Context 对象的区别**
 
+Context 的继承关系如下所示，所以，Android 中的 Context 数量 = Activity 的数量 + Service 的数量 + 1 (Application)
+
+![Context 的继承关系](res/QQ截图20190226123631.png)
+
+Context 的用途比较广，比如用来获取图片、字符串，显式对话框等，大部分情况下，使用哪个 Context 都可以，少数情况下只能使用特定的 Context. 比如启动 Activity 的时候，要求传入 Activity 的 Context，因为 AMS 需要直到启动指定 Activity 的 Activity 的栈。一般情况下，能使用 Application 的 Context 尽量使用它的，因为它的生命周期更长。
+
+Context 之间使用的是装饰者设计模式，其中 Context 是一个抽象的类。ContextWrapper 内部实际使用 ContextImpl 实现的，因此所有的逻辑基本是在 ContextImpl 中实现的。然后对于 ContextThemeWrapper，它在 ContextWrapper 的基础之上又进行了一层装饰，就是与主题相关的东西。
+
+新版的 Activity 启动中将 Activity 的各个回调执行的逻辑放在了各个 ClientTransactionItem 中，比如 LaunchActivityItem 表示用来启动 Activity。 最终执行逻辑的时候是调用它们的 execute() 方法并使用传入的 ClientTransactionHandler 真正执行任务。而这里的 ClientTransactionHandler 实际上就是 ActivityThread，所以它将调用到 Activity 的 `handleLaunchActivity()` 启动 Activity. 然后程序进入到 `performLaunchActivity()` 中。这个方法中会创建上面的 Application 和 Activity 对应的 Context：
+
+```java
+    private Activity performLaunchActivity(ActivityClientRecord r, Intent customIntent) {
+        // ...
+
+        // 创建 Activity 的 Context
+        ContextImpl appContext = createBaseContextForActivity(r);
+        Activity activity = null;
+        try {
+            java.lang.ClassLoader cl = appContext.getClassLoader();
+            // 创建新的 Activity
+            activity = mInstrumentation.newActivity(
+                    cl, component.getClassName(), r.intent);
+            // ...
+        } catch (Exception e) {
+            // ... handle exception
+        }
+
+        try {
+            // 创建应用的 Application
+            Application app = r.packageInfo.makeApplication(false, mInstrumentation);
+
+            if (activity != null) {
+                CharSequence title = r.activityInfo.loadLabel(appContext.getPackageManager());
+                // Activity 的配置
+                Configuration config = new Configuration(mCompatConfiguration);
+                if (r.overrideConfig != null) {
+                    config.updateFrom(r.overrideConfig);
+                }
+                // 创建窗口
+                Window window = null;
+                if (r.mPendingRemoveWindow != null && r.mPreserveWindow) {
+                    window = r.mPendingRemoveWindow;
+                    r.mPendingRemoveWindow = null;
+                    r.mPendingRemoveWindowManager = null;
+                }
+                // 关联 Activity 和 Context
+                appContext.setOuterContext(activity);
+                activity.attach(appContext, this, getInstrumentation(), r.token,
+                        r.ident, app, r.intent, r.activityInfo, title, r.parent,
+                        r.embeddedID, r.lastNonConfigurationInstances, config,
+                        r.referrer, r.voiceInteractor, window, r.configCallback);
+
+                // ...
+                // 设置 Activity 的主题
+                int theme = r.activityInfo.getThemeResource();
+                if (theme != 0) {
+                    activity.setTheme(theme);
+                }
+
+                // 回调 Activity 的生命周期方法
+                activity.mCalled = false;
+                if (r.isPersistable()) {
+                    mInstrumentation.callActivityOnCreate(activity, r.state, r.persistentState);
+                } else {
+                    mInstrumentation.callActivityOnCreate(activity, r.state);
+                }
+                r.activity = activity;
+            }
+            r.setState(ON_CREATE);
+            mActivities.put(r.token, r);
+        } catch (SuperNotCalledException e) {
+            throw e;
+        } catch (Exception e) {
+            // ... handle exception
+        }
+
+        return activity;
+    }
+
+    public Application makeApplication(boolean forceDefaultAppClass, Instrumentation instrumentation) {
+        // ...
+
+        try {
+            // 创建 Application 的 Context
+            ContextImpl appContext = ContextImpl.createAppContext(mActivityThread, this);
+            app = mActivityThread.mInstrumentation.newApplication(
+                    cl, appClass, appContext);
+            // 关联 Application 和 Context
+            appContext.setOuterContext(app);
+        } catch (Exception e) {
+            // ... handle exception
+        }
+        // ...
+        return app;
+    }
+```
+
 ### 1.7 其他
 
 - AndroidManifest 的作用与理解
+
+声明了四大组件、应用版本、权限等的配置信息，会在解析 APK 的时候由 PMS 进行解析，然后解析的结果会被缓存到 PMS 中。
 
 ## 2、Android API
 
 ### 2.1 AsyncTask
 
-1. **AsyncTask 机制，如何取消 AsyncTask**
-2. **多线程（关于 AsyncTask 缺陷引发的思考）**
-3. **Asynctask 有什么优缺点**
+- **AsyncTask 机制，如何取消 AsyncTask**
+- **多线程（关于 AsyncTask 缺陷引发的思考）**
+- **Asynctask 有什么优缺点**
 - AsyncTask 机制、原理及不足？
 
 AsyncTask 是 Android 提供的用来执行异步操作的 API，我们可以通过它来执行异步操作，并在得到结果之后将结果放在主线程当中进行后续处理。
@@ -180,7 +279,7 @@ AsyncTask 在 1.6 之前是串行的，1.6 之后是并行的，3.0 之后又改
 
 AsyncTask 的源码就是将一个任务封装成 Runnable 之后放进线程池当中执行，执行完毕之后调用主线程的 Handler 发送消息到主线程当中进行处理。任务在默认线程池当中执行的时候，会被加入到一个双端队列中执行，执行完一个之后再执行下一个，以此来实现任务的串行执行。
 
-*了解 AsyncTask 的源码，可以参考笔者的这篇文章：[Android AsyncTask 源码分析](https://juejin.im/post/5b65c71af265da0f9402ca4a)*
+*了解 AsyncTask 的源码，可以参考笔者的这篇文章：[《Android AsyncTask 源码分析》](https://juejin.im/post/5b65c71af265da0f9402ca4a)*
 
 - **Q：介绍下 SurfaceView**
 
@@ -224,7 +323,7 @@ Activity 的层级：`Activity->PhoneWindow->DecorView`
 
 对于 `dispatchTouchEvent()` 方法，在 View 的默认实现中，会先交给 `onTouchEvent()` 进行处理，若它返回了 true 就消费了，否则根据触摸的类型，决定是交给 `OnClickListener` 还是 `OnLongClickListener` 继续处理。
 
-*事件分发机制和 View 的体系请参考笔者文章：[View 体系详解：坐标系、滑动、手势和事件分发机制](https://juejin.im/post/5bbb5fdce51d450e942f6be4)，整体上事件分发机制应该分成三个阶段来进行说明：1).从 Activity 到 DecorView 的过程；2).ViewGroup 中的分发的过程；3).交给 View 之后的实现过程。*
+*事件分发机制和 View 的体系请参考笔者文章：[《View 体系详解：坐标系、滑动、手势和事件分发机制》](https://juejin.im/post/5bbb5fdce51d450e942f6be4)，整体上事件分发机制应该分成三个阶段来进行说明：1).从 Activity 到 DecorView 的过程；2).ViewGroup 中的分发的过程；3).交给 View 之后的实现过程。*
 
 - 封装 View 的时候怎么知道 View 的大小
 - 点击事件被拦截，但是想传到下面的 View，如何操作？
@@ -244,11 +343,13 @@ ViewHolder 同样也是为了提高性能。就是用来在缓存使用 `findVie
 *关于 ListView 的 ViewHolder 等的使用，可以参考这篇文章：[ListView 复用和优化详解](https://blog.csdn.net/u011692041/article/details/53099584)*
 
 - RecycleView 的使用，原理，RecycleView 优化
-- recycleview Listview 的区别，性能
+- Recycleview Listview 的区别，性能
 
+1. 装饰；
+2. 手势滑动、拖拽；
+3. 顶部悬浮效果；
 
-
-- [ ] Listview 图片加载错乱的原理和解决方案
+- Listview 图片加载错乱的原理和解决方案
 
 ### 2.4 其他控件
 
@@ -268,31 +369,150 @@ SP，SQLite，ContentProvider，File，Server
 - 模式 MVP、MVC 介绍
 - MVP 模式
 
+MVC (Model-View-Controller, 模型-视图-控制器)，标准的MVC是这个样子的：
+
+1. 模型层 (Model)：业务逻辑对应的数据模型，无 View 无关，而与业务相关；
+2. 视图层 (View)：一般使用 XML 或者 Java 对界面进行描述；
+3. 控制层 (Controllor)：在 Android 中通常指 Activity  和Fragment，或者由其控制的业务类。
+
+在 Android 开发中，就是指直接使用 Activity 并在其中写业务逻辑的开发方式。显然，一方面 Activity 本身就是一个视图，另一方面又要负责处理业务逻辑，因此逻辑会比较混乱。这种开发方式不太适合 Android 开发。
+
+MVP (Model-View-Presenter)
+
+1. 模型层 (Model)：主要提供数据存取功能。
+2. 视图层 (View)：处理用户事件和视图。在 Android 中，可能是指 Activity、Fragment 或者 View。
+3. 展示层 (Presenter)：负责通过 Model 存取书数据，连接 View 和 Model，从 Model 中取出数据交给 View。
+
+实际开发中会像下面这样定义一个契约接口
+
+```java
+    public interface HomeContract {
+
+        interface IView extends BaseView {
+            void setFirstPage(List<HomeBean.IssueList.ItemList> itemLists);
+            void setNextPage(List<HomeBean.IssueList.ItemList> itemLists);
+            void onError(String msg);
+        }
+
+        interface IPresenter extends BasePresenter {
+            void requestFirstPage();
+            void requestNextPage();
+        }
+    }
+```
+
+然后让 Fragment 或者 Activity 等继承 IView，实例化一个 IPresenter，并在构造方法中将自己引入到 IPresenter 中。这样 View 和 Presenter 就相互持有了对方的引用。当要发起一个网络请求的时候，View 中调用 Presenter 的方法，Presenter 拿到了结果之后回调 View 的方法。这样就使得 View 和 Presenter 只需要关注自身的责任即可。
+
+MVP 缺点：1). Presenter 中除了应用逻辑以外，还有大量的 View->Model，Model->View 的手动同步逻辑，造成 Presenter 比较笨重，维护起来会比较困难；2). 由于对视图的渲染放在了 Presenter 中，所以视图和 Presenter 的交互会过于频繁；3). 如果 Presenter 过多地渲染了视图，往往会使得它与特定的视图的联系过于紧密，一旦视图需要变更，那么 Presenter 也需要变更了。
+
+MVVM 是 Model-View-ViewModel 的简写。它本质上就是 MVC 的改进版。MVVM 就是将其中的 View 的状态和行为抽象化，让我们将视图 UI 和业务逻辑分开。
+
+1. 模型层 (Model)：负责从各种数据源中获取数据；
+2. 视图层 (View)：在 Android 中对应于 Activity 和 Fragment，用于展示给用户和处理用户交互，会驱动 ViewModel 从 Model 中获取数据；
+3. ViewModel 层：用于将 Model 和 View 进行关联，我们可以在 View 中通过 ViewModel 从 Model 中获取数据；当获取到了数据之后，会通过自动绑定，比如 DataBinding，来将结果自动刷新到界面上。
+
+优点：
+
+1. 低耦合：视图（View）可以独立于Model变化和修改，一个 ViewModel 可以绑定到不同的 View 上，当 View 变化的时候 Model 可以不变，当 Model 变化的时候 View 也可以不变。
+2. 可重用性：你可以把一些视图逻辑放在一个 ViewModel 里面，让很多 view 重用这段视图逻辑。
+3. 独立开发：开发人员可以专注于业务逻辑和数据的开发（ViewModel），设计人员可以专注于页面设计。
+4. 可测试：界面素来是比较难于测试的，而现在测试可以针对 ViewModel 来写。
+
+*关于移动应用架构部分内容可以参考笔者的文章：[《Android 架构设计：MVC、MVP、MVVM和组件化》](https://juejin.im/post/5b7c1706f265da436d7e408e)，另外关于 MVVM 架构设计中的 ViewModel 和 LiveData 的机制可以参考：[《浅谈 ViewModel 的生命周期控制》](https://juejin.im/post/5c3dacde518825247c723ab5) 和 [《浅谈 LiveData 的通知机制》](https://juejin.im/post/5c40a95a6fb9a049bc4cf0a8)*
+
 ## 4、系统源码
 
-- [ ] App 启动流程，从点击桌面开始
-- [ ] activity 栈
+- 画出 Android 的大体架构图
+
+<div align="center"><img src="res/QQ截图20190225213434.png" width="300"/></div>
+
+- App 启动流程，从点击桌面开始
+- Activity 栈
+- 简述 Activity 启动全部过程？
+- ActicityThread 相关？
+
+ `startActivity()` -> `Process.start()` -> Socket -> (SystemServer) -> Zygote.fork() -> VM,Binder 线程池 -> ActivityThread.main()
+
+`Instrumentation.execStartActivity()` -> `IApplicationThread+AMS+H` -> 校验用户信息等 -> 解析 Intent -> 回调 `IApplicationThread.scheduleTransaction()`
+
+- App 是如何沙箱化，为什么要这么做
+
+Android是一个权限分离的系统，这是利用 Linux 已有的权限管理机制，通过为每一个 Application 分配不同的 uid 和 gid，从而使得不同的 Application 之间的私有数据和访问（native以及java层通过这种 sandbox 机制，都可以）达到隔离的目的 。与此同时，Android 还在此基础上进行扩展，提供了 permission 机制，它主要是用来对 Application 可以执行的某些具体操作进行权限细分和访问控制，同时提供了 per-URI permission 机制，用来提供对某些特定的数据块进行 ad-hoc 方式的访问。 
+
+- 权限管理系统（底层的权限是如何进行 grant 的）
+- 动态权限适配方案，权限组的概念
 
 
-- [ ] 画出 Android 的大体架构图
+- 大体说清一个应用程序安装到手机上时发生了什么
+- 应用安装过程
 
+应用安装的时候涉及几个类，分别时 PackageManager, ApplicationPackageManager 和 PMS. 它们之间的关系是，PackageManager 是一个抽象类，它的具体实现是 ApplicationPackageManager，而后者的所有实现都是靠 PMS 实现的。PMS 是一种远程的服务，与 AMS 相似，在同一方法中启动。另外，还有 Installer 它是安装应用程序的辅助类，它也是一种系统服务，与 PMS 在同一方法中启动。它会通过 Socket 与远程的 Installd 建立联系。这是因为权限的问题，PMS 只有 system 权限。installd 却是具有 root 权限。（Installd 的作用好像就是创建一个目录）
 
-- [ ] 权限管理系统（底层的权限是如何进行 grant 的）
-- [ ] 动态权限适配方案，权限组的概念
+installd是由Android系统init进程(pid=1)，在解析init.rc文件的代码时，通过fork创建用户空间的守护进程intalld。启动时，进入监听socket，当客户端发送过来请求时，接收客户端的请求，并读取客户端发送过来的命令数据，并根据读取客户端命令来执行命令操作。
 
-- [ ] App 是如何沙箱化，为什么要这么做
+Android上应用安装可以分为以下几种方式：
 
-- [ ] 描述清点击 Android Studio 的 build 按钮后发生了什么
+1. 系统安装：开机的时候，没有安装界面
+2. adb 命令安装：通过abd命令行安装，没有安装界面
+3. 应用市场安装，这个要视应用的权限，有系统的权限无安装界面(例如MUI的小米应用商店)
+4. 第三方安装，有安装界面，通过packageinstaller.apk来处理安装及卸载的过程的界面
+
+apk的大体流程如下：
+
+1. 第一步：拷贝文件到指定的目录：在Android系统中，apk安装文件是会被保存起来的，默认情况下，用户安装的apk首先会被拷贝到/data/app目录下，/data/app目录是用户有权限访问的目录，在安装apk的时候会自动选择该目录存放用户安装的文件，而系统出场的apk文件则被放到了/system分区下，包括/system/app，/system/vendor/app，以及/system/priv-app等等，该分区只有ROOT权限的用户才能访问，这也就是为什么在没有Root手机之前，我们没法删除系统出场的app的原因了。
+2. 第二步：解压缩apk，宝贝文件，创建应用的数据目录：为了加快app的启动速度，apk在安装的时候，会首先将app的可执行文件dex拷贝到/data/dalvik-cache目录，缓存起来。然后，在/data/data/目录下创建应用程序的数据目录(以应用的包名命名)，存放在应用的相关数据，如数据库、xml文件、cache、二进制的so动态库等。
+3. 第三步：解析apk的AndroidManifest.xml文件：提取出这个apk的重要信息写入到packages.xml文件中，这些信息包括：权限、应用包名、APK的安装位置、版本、userID等等。
+4. 第四步：显示快捷方式：Home应用程序，负责从PackageManagerService服务中把这些安装好的应用程序取出来。在Android系统中，负责把系统中已经安装的应用程序在桌面中展现出来的Home应用就是Launcher了。
+
+普通安装：
+
+PackagInstaller是安卓上默认的应用程序，用它来安装普通文件。PackageInstaller调用一个叫做InstallAppProgress的activity来获取用户发出的指令。InstallAppProgress会请求Package Manager服务，然后通过installed来安装包文件。它提供了安装的页面和安装进度相关页面，我们平时安装应用时显式的就是它。（[源码](https://android.googlesource.com/platform/packages/apps/PackageInstaller)）
+
+最终的安卓过程则是交给 PMS 的 `installPackageLI()` 方法来完成，它也会先对 manifest 进行解析，然后将解析的结果添加到 PMS 的缓存中，并注册四大组件。
+
+如果是第一次安装的时候就会调用 `scanPackageLI()` 方法来进行安装。
+
+![安装大致流程图](https://upload-images.jianshu.io/upload_images/5713484-70c0a869e6c3ad26.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/806/format/webp)
+
+1. PMS 在启动 SystemSever 时启动，调用构造方法，对目录进行扫描，包括系统、供应商等的目录，复制 APK，解析 APK，缓存 APK 信息；
+2. ADB -> pm.jar -> PMS -> Installd（） -> Installer（系统服务）
+
+- 系统启动流程 Zygote 进程 –> SystemServer 进程 –> 各种系统服务 –> 应用进程
+
+按下电源之后，首先加载引导程序 BootLoader 到 RAM；然后，执行引导程序 BootLoader 以把系统 OS 拉起来；接着，启动 Linux 内核；内核中启动的第一个用户进程是 init 进程，init 进程会通过解析 init.rc 来启动 zygote 服务；Zygote 又会进一步的启动 SystemServer；在 SystemServer 中，Android 会启动一系列的系统服务供用户调用。
+
+Init 进程会启动之后会解析 `init.rc` 文件，该文件由固定格式的指令组成，在 AOSP 中有说明它的规则。其中的每个指令对应系统中的类。在解析文件的时候会将其转换成对应的类的实例来保存，比如 service 开头的指令会被解析成 Service 对象。在解析 `init.rc` 文件之前会根据启动时的属性设置加载指定的 rc 文件到系统中。当解析完毕之后系统会触发初始化操作。它会通过调用 Service 的 `start()` 方法来启动属性服务，然后进入 `app_main.cpp` 的 main() 方法。这个方法中会根据 service 指令的参数来决定调用 Java 层的 ZygoteInit 还是 RuntimeInit. 这里会调用后者的 ZygoteInit 初始化 Zygote 进程。
+
+```c++
+    if (zygote) {
+        runtime.start("com.android.internal.os.ZygoteInit", args, zygote);
+    } else if (className) {
+        runtime.start("com.android.internal.os.RuntimeInit", args, zygote);
+    } else {
+        app_usage();
+    }
+```
+
+它调用的方式是通过 runtime 的 `start()` 方法，而这个 runtime 就是 AndroidRuntime. 但是在执行 Java 类之前得先有虚拟机，所以它会先启动虚拟机实例，然后再调用 ZygoteInit 的方法。所以，AndroidRuntime 的 `start()` 方法中主要做了三件事情：1).调用函数 `startVM()` 启动虚拟机；2).调用函数 `startReg()` 注册 JNI 方法；3).调用 `com.android.internal.os.ZygoteInit` 类的 `main()` 函数。
+
+ZygoteInit 用来初始化 Zygote 进程的，它的 `main()` 函数中主要做了三件事情：
+
+1. 调用 `registerZygoteSocket()` 函数创建了一个 socket 接口，用来和 AMS 通讯；（Android 应用程序进程启动过程中，AMS 是通过 `Process.start()` 函数来创建一个新的进程的，而 `Process.start()` 函数会首先通过 Socket 连接到 Zygote 进程中，最终由 Zygote 进程来完成创建新的应用程序进程，而 Process 类是通过 `openZygoteSocketIfNeeded()` 函数来连接到 Zygote 进程中的 Socket.）
+2. 调用 `startSystemServer()` 函数来启动 SystemServer 组件，Zygote 进程通过 `Zygote.forkSystemServer()` 函数来创建一个新的进程来启动 SystemServer 组件；（SystemServer 的 main 方法将会被调用，并在这里启动 Binder 中的 ServiceManager 和各种系统运行所需的服务，PMS 和 AMS 等）
+3. 调用 `runSelectLoopMode()` 函数进入一个无限循环在前面创建的 socket 接口上等待 AMS 请求创建新的应用程序进程。
+
+总结一下：
+
+1. 系统启动时 init 进程会创建 Zygote 进程，Zygote 进程负责后续 Android 应用程序框架层的其它进程的创建和启动工作。
+2. Zygote 进程会首先创建一个 SystemServer 进程，SystemServer 进程负责启动系统的关键服务，如包管理服务 PMS 和应用程序组件管理服务 AMS。
+3. 当我们需要启动一个 Android 应用程序时，AMS 会通过 Socket 进程间通信机制，通知 Zygote 进程为这个应用程序创建一个新的进程。
+
+- 描述清点击 Android Studio 的 build 按钮后发生了什么
 
 编译打包的过程->adb->安装过程 PMS->应用启动过程 AMS
 
-- [ ] 大体说清一个应用程序安装到手机上时发生了什么
 
-- [ ] 系统启动流程 Zygote进程 –> SystemServer进程 –> 各种系统服务 –> 应用进程
 
-- [ ] ActicityThread 相关？
 
-- [ ] 应用安装过程
 
-- [ ] 简述 Activity 启动全部过程？
 
