@@ -331,6 +331,17 @@ Activity 的层级：`Activity->PhoneWindow->DecorView`
 
 按照广度优先算法进行遍历
 
+- `postinvalidate()` 和 `invalidate()` 的区别
+
+Android 中实现 view 的更新有两组方法，一组是 invalidate，另一组是 postInvalidate，其中前者是在UI线程自身中使用，而后者在非 UI 线程中使用。
+
+- 三种测量方式之间的区别
+
+1. UNSPECIFIED：默认值，父控件没有给子 View 任何限制，子 View 可以设置为任意大小，没有任何限制。这种情况比较少见，不太会用到。
+2. EXACTLY：表示父控件已经确切的指定了子 View 的大小。父视图希望子视图的大小应该是由 specSize 的值来决定的，系统默认会按照这个规则来设置子视图的大小，简单的说当设置 width 或 height 为 match_parent 时，模式为 EXACTLY，因为子 view 会占据剩余容器的空间，所以它大小是确定的。
+3. AT_MOST：表示子 View 具体大小没有尺寸限制，但是存在上限，最多只能是 specSize 中指定的大小。（当设置为 width 或 height 为 wrap_content 时，模式为 AT_MOST, 表示子 view 的大小最多是多少，这样子 view 会根据这个上限来设置自己的尺寸）。
+
+
 ### 2.3 列表控件
 
 - ListView 的优化

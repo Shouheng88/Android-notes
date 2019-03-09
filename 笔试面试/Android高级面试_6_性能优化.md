@@ -1,51 +1,43 @@
 # Android 高级面试-6：性能优化
 
-Android 应用的内存管理：
+## 1、内存优化
 
-由 AMS 集中管理所有进程的内存分配；系统回收进程的时候优先级如下，
+> Android 中的内存是如何进行管理的？
 
-Anroid基于进程中运行的组件及其状态规定了默认的五个回收优先级：
+Android 应用的内存管理：由 AMS 集中管理所有进程的内存分配；系统回收进程的时候优先级如下所示。Anroid 基于进程中运行的组件及其状态规定了默认的五个回收优先级：`Empty process` (空进程)、`Background process` (后台进程)、`Service process` (服务进程)、`Visible process` (可见进程) 和 `1Foreground process` (前台进程)。系统需要进行内存回收时最先回收空进程，然后是后台进程，以此类推最后才会回收前台进程。
 
-1. Empty process(空进程)
-2. Background process(后台进程)
-3. Service process(服务进程)
-4. Visible process(可见进程)
-5. Foreground process(前台进程)
+### 1.1 OOM
 
-系统需要进行内存回收时最先回收空进程,然后是后台进程，以此类推最后才会回收前台进程。
+> OOM 的几种常见情形？
 
-## 1、OOM
+1. **数据太大**：比如加载图片太大，原始的图片没有经过采样，完全加载到内存中导致内存爆掉。
+2. **内存泄漏**
+3. **内存抖动**：内存抖动是指内存频繁地分配和回收，而频繁的 GC 会导致卡顿，严重时还会导致 OOM。一个很经典的案例是 String 拼接时创建大量小的对象。此时由于大量小对象频繁创建，导致内存不连续，无法分配大块内存，系统直接就返回 OOM 了。
 
-- OOM 的可能原因？
+> OOM 是否可以 Try Catch ？
 
-1. 加载图片太大：原始的图片没有经过采样，完全加载到内存中导致内存爆掉；
-2. 内存泄漏，见下文；
-3. 内存抖动：Android 里内存抖动是指内存频繁地分配和回收，而频繁的 gc 会导致卡顿，严重时还会导致 OOM。一个很经典的案例是 string 拼接创建大量小的对象。而内存抖动为什么会引起OOM呢？主要原因还是有因为大量小的对象频繁创建，导致内存碎片，从而当需要分配内存时，虽然总体上还是有剩余内存可分配，而由于这些内存不连续，导致无法分配，系统直接就返回 OOM 了。
-4. 耗内存操作应该放在新进程,避免oom超内存异常
+Catch 是可以 Catch 到的，但是这样不符合规范，Error 说明程序中发生了错误，我们应该使用引用四种引用、增加内存或者减少内存占用来解决这个问题。
 
-- Oom 是否可以 try catch ？
+### 1.2 内存泄漏
 
+> 常见的内存泄漏的情形，以及内存泄漏应该如何分析？
 
-## 2、内存泄漏
+1. `单例` 引用了 Activity 的 Context，可以使用 `Context.getApplicationContext()` 获取整个应用的 Context 来使用；
+2. `静态变量` 持有 Activity 的引用，原因和上面的情况一样，比如为了避免反复创建一个内部实例的时候使用静态的变量；
+3. `非静态内部类` 导致内存泄露，典型的有：
+    1. Handler：Handler 默认持有外部 Activity 的引用，发送给它的 Message 持有 Handler 的引用，Message 会被放入 MQ 中，因此可能会造成泄漏。解决方式是使用弱引用来持有外部 Activity 的引用。另一种方式是在 Activity 的 `onDestroy()` 方法中调用 `mHandler.removeCallbacksAndMessages(null)` 从 MQ 中移除消息。 后者更好一些！因为它移除了 Message. 
+    2. 另一种情形是使用非静态的 Thread 或者 AsyncTask，因为它们持有 Activity 的引用，解决方式是使用 `静态内部类+弱引用`。
+4. `广播`：未取消注册广播。在 Activity 中注册广播，如果在 Activity 销毁后不取消注册，那么这个刚播会一直存在系统中，同上面所说的非静态内部类一样持有 Activity 引用，导致内存泄露。
+5. `资源`：未关闭或释放导致内存泄露。使用 IO、File 流或者 Sqlite、Cursor 等资源时要及时关闭。这些资源在进行读写操作时通常都使用了缓冲，如果及时不关闭，这些缓冲对象就会一直被占用而得不到释放，以致发生内存泄露。
+6. `属性动画`：在 Activity 中启动了属性动画（ObjectAnimator），但是在销毁的时候，没有调用 cancle 方法，虽然我们看不到动画了，但是这个动画依然会不断地播放下去，动画引用所在的控件，所在的控件引用 Activity，这就造成 Activity 无法正常释放。因此同样要在 Activity 销毁的时候 cancel 掉属性动画，避免发生内存泄漏。
+7. `WebView`：WebView 在加载网页后会长期占用内存而不能被释放，因此我们在 Activity 销毁后要调用它的 destory() 方法来销毁它以释放内存。
 
-- OOM，内存泄漏
-- 内存泄露如何产生？
-- 内存泄漏的可能原因？
+### 1.3 内存优化相关的工具
 
-1. `单例`引用了 Activity 的 Context，可以使用 `Context.getApplicationContext()` 获取整个应用的 Context 来使用；
-2. `静态变量`持有 Activity 的引用，原因和上面的情况一样，比如为了避免反复创建一个内部实例的时候使用静态的变量；
-3. `非静态内部类`导致内存泄露：典型的是 Handler，Handler 默认持有外部 Activity 的引用，发送给它的 Message 持有 Handler 的引用，Message 会被放入 MQ 中，因此可能会造成泄漏。解决方式是使用弱引用来持有外部 Activity 的引用。另一种方式是在 Activity 的 `onDestroy()` 方法中调用 `mHandler.removeCallbacksAndMessages(null)` 从 MQ 中移除消息。 后者更好一些！因为它移除了 Message. 另一种情形是使用非静态的 Thread 或者 AsyncTask，因为它们持有 Activity 的引用，解决方式是使用静态内部类+弱引用。
-4. 未取消注册`广播`：在 Activity 中注册广播，如果在 Activity 销毁后不取消注册，那么这个刚播会一直存在系统中，同上面所说的非静态内部类一样持有 Activity 引用，导致内存泄露。
-5. 资源未关闭或释放导致内存泄露：使用 IO、File 流或者 Sqlite、Cursor 等资源时要及时关闭。这些资源在进行读写操作时通常都使用了缓冲，如果及时不关闭，这些缓冲对象就会一直被占用而得不到释放，以致发生内存泄露。
-6. `属性动画`造成内存泄露：在 Activity 中启动了属性动画（ObjectAnimator），但是在销毁的时候，没有调用 cancle 方法，虽然我们看不到动画了，但是这个动画依然会不断地播放下去，动画引用所在的控件，所在的控件引用 Activity，这就造成 Activity 无法正常释放。因此同样要在 Activity 销毁的时候 cancel 掉属性动画，避免发生内存泄漏。
-7. `WebView` 造成内存泄露：WebView 在加载网页后会长期占用内存而不能被释放，因此我们在 Activity 销毁后要调用它的 destory() 方法来销毁它以释放内存。
-
-解决办法：
-
-Square 公司开源的用于检测内存泄漏的库，Github 地址：[LeakCanary](https://github.com/square/leakcanary). 它的配置和使用比较简单，不介绍。
-
-- 用 IDE 如何分析内存泄漏？
-
+1. **检查内存泄漏**：Square 公司开源的用于检测内存泄漏的库，Github 地址：[LeakCanary](https://github.com/square/leakcanary). 它的配置和使用比较简单，不介绍。
+2. **Memory Monitor**：AS 自带的工具，可以用来主动触发 GC，获取堆内存快照文件以便进一步进行分析（通过叫做 Allocation Tracker 的工具获取快照）。（属于开发阶段使用的工具，开发时应该多使用它来检查内存占用。）
+3. **Device Monitor**：包含多种分析工具：线程，堆，网络，文件等（位于 sdk 下面的 tools 文件夹中）。可以通过这里的 Heap 选项卡的 Cause GC 按钮主动触发 GC，通过内存回收的状态判断是否发生了内存泄漏。
+4. **MAT**：首先通过 DDMS 的 Devices 选项卡下面的 Dump HPROF File 生成 hrpof 文件，然后用 SDK 的 hprof-conv 将该文件转成标准 hprof 文件，导入 MAT 中进行分析。 
 
 ## 3、ANR
 
