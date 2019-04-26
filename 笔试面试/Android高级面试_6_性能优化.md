@@ -4,7 +4,7 @@
 
 > Android 中的内存是如何进行管理的？
 
-Android 应用的内存管理：由 AMS 集中管理所有进程的内存分配；系统回收进程的时候优先级如下所示。Anroid 基于进程中运行的组件及其状态规定了默认的五个回收优先级：`Empty process` (空进程)、`Background process` (后台进程)、`Service process` (服务进程)、`Visible process` (可见进程) 和 `1Foreground process` (前台进程)。系统需要进行内存回收时最先回收空进程，然后是后台进程，以此类推最后才会回收前台进程。
+
 
 ### 1.1 OOM
 

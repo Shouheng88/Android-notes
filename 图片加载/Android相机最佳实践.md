@@ -342,4 +342,6 @@ public class SizeMap extends HashMap<AspectRatio, List<Size>> {
 
 ## 项目地址：
 
-CameraX：https://github.com/Shouheng88/CameraX
+1. 项目地址：https://github.com/Shouheng88/CameraX
+2. UML 建模图地址：https://www.processon.com/view/link/5c976af8e4b0d1a5b10a4049
+3. 笔者翻译的Camera2 文档：https://github.com/Shouheng88/Android-notes/blob/master/%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96/Android%E7%9B%B8%E6%9C%BACamera2%E8%B5%84%E6%96%99.md

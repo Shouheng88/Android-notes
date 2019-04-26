@@ -1,30 +1,17 @@
 # Android 高级面试-1：Handler 相关
 
-## 要点
+1. 问题：Handler 实现机制（很多细节需要关注：如线程如何建立和退出消息循环等等）
+2. 问题：关于 Handler，在任何地方 `new Handler` 都是什么线程下?
+3. 问题：Handler 发消息给子线程，looper 怎么启动?
+4. 问题：在子线程中创建 Handler 报错是为什么?
+5. 问题：如何在子线程创建 Looper?
+6. 问题：为什么通过 Handler 能实现线程的切换?
 
-难点：
+参考：
 
-1. MQ 的 next() 方法，enqueueMessage() 方法，因为它们与 Native 层的 Looper 和 MQ 关联。
+1. **Handler 机制**：Handler 机制中有 4 个主要的对象：Handler、Message、MessageQueue 和 Looper. Handler 负责消息的发送和处理；Message 是消息对象，是链表的一个结点；MessageQueue 是消息队列，用于存放消息对象的数据结构；Looper 是消息队列的处理者，用于轮询消息队列，使用 MessageQueue 取出 Message。每个 Message 上面包含对应的 Handler 信息，所以取 Message 后调用它的 Handler 的 `dispatchMessage()` 进行消息的分发，`dispatchMessage()` 方法会回调 `handleMessage()` 方法把消息传入 Handler 来处理消息。
 
-重点：
-
-1. 消息如何分发
-2. next() 方法
-3. 如何退出
-4. Handler 与线程对应起来的原理
-
-## 题目
-
-- **Handler 实现机制（很多细节需要关注：如线程如何建立和退出消息循环等等）**
-- **关于 Handler，在任何地方 new Handler 都是什么线程下?**
-- **Handler 发消息给子线程，looper 怎么启动?**
-- **在子线程中创建 Handler 报错是为什么?**
-- **如何在子线程创建 Looper?**
-- **为什么通过 Handler 能实现线程的切换?**
-
-Handler 机制中有 4 个主要的对象：Handler、Message、MessageQueue 和 Looper. Handler 负责消息的发送和处理；Message 是消息对象，类似于链表的一个结点；MessageQueue 是消息队列，用于存放消息对象的数据结构；Looper 是消息队列的处理者（用于轮询消息队列的消息对象，取出后回调 handler 的 `dispatchMessage()` 进行消息的分发，`dispatchMessage()` 方法会回调 `handleMessage()` 方法把消息传入，由 Handler 的实现类来处理。）
-
-当我们在某个线程当中调用 `new Handler()` 的时候会使用当前线程的 Looper 创建 Handler. 当前线程的 Looper 存在于线程局部变量 ThreadLocal 中。在使用 Handler 之前我们需要先调用 `Looper.prepare()` 方法实例化当前线程的 Looper，并将其放置到当前线程的线程局部变量中（只放一次，以后会先从 TL 中获取再使用，**此时会调用 Looper 的构造方法，并在构造方法中初始化 MQ**），然后**调用 `Looper.loop()` 开启消息循环**。主线程也是一样，只是主线程的 Looper 在 ActivityThread 的 `main()` 方法中被实例化。我们可以使用 `Looper.getMainLooper()` 方法来获取主线程的 Looper，并使用它来创建 Handler，这样我们就可以在任何线程中向主线程发送消息了。
+2. **线程的问题**：当我们在某个线程当中调用 `new Handler()` 的时候会使用当前线程的 Looper 创建 Handler. 当前线程的 Looper 存在于线程局部变量 ThreadLocal 中。在使用 Handler 之前我们需要先调用 `Looper.prepare()` 方法实例化当前线程的 Looper，并将其放置到当前线程的线程局部变量中。一个线程的 Looper 只会被创建一次，之后会先从 ThreadLocal 中获取再使用。调用 `Looper.prepare()` 时会调用 Looper 的构造方法，并在构造方法中初始化 MessageQueue. 然后当我们调用 `Looper.loop()` 时开启消息循环。主线程也是一样，只是主线程的 Looper 在 ActivityThread 的静态 `main()` 方法中被实例化。我们可以使用 `Looper.getMainLooper()` 方法来获取主线程的 Looper，并使用它来创建 Handler，这样我们就可以在任何线程中向主线程发送消息了。所以，在非主线程中使用 Handler 的标准时：
 
 ```java
     Looper.prepare(); // 内部会调用 Looper 的 new 方法实例化 Looper 并将其放进 TL
@@ -32,9 +19,9 @@ Handler 机制中有 4 个主要的对象：Handler、Message、MessageQueue 和
     Looper.loop();
 ```
 
-当实例化 Looper 的时候会同时实例化一个 MessageQueue，而 MessageQueue 同时又会调用 Native 层的方法在 Native 层实例化一个 MessageQueue 还有 Looper. Java 层的 Looper 和 Native 层的 Looper 之间使用 epoll 进行通信。当调用 Looper 的 `loop()` 方法的时候会启动一个循环来对消息进行处理。Java 层的 MQ 中没有消息的时候，Native 层的 Looper 会使其进入睡眠状态，当有消息到来的时候再将其唤醒起来处理消息，以节省 CPU. 
+3. **关于 MessageQueue**：当实例化 Looper 的时候会同时实例化一个 MessageQueue，而 MessageQueue 同时又会调用 Native 层的方法在 Native 层实例化一个 MessageQueue 和 Looper. Java 层的 Looper 和 Native 层的 Looper 之间使用 epoll 进行通信。当调用 Looper 的 `loop()` 方法的时候会启动一个循环来对消息进行处理。Java 层的 MessageQueue 中没有消息的时候，Native 层的 Looper 会使其进入睡眠状态，当有消息到来的时候再将其唤醒起来处理消息，以节省 CPU. MessageQueue 中使用 `sychronized(this)` 来保证内部方法的线程安全。
 
-在 Looper 的 `loop()` 中开启无限循环为什么不会导致主线程 ANR 呢？这是因为 Android 系统本身就是基于消息机制的，所谓的消息就是指发送到主线程当中的消息。之所以产生 ANR 并不是因为主线程当中的任务无限循环，而是因为无限循环导致其他的事件得不到处理。
+4. **在 Looper 的 `loop()` 中开启无限循环为什么不会导致主线程 ANR 呢？** 这是因为 Android 系统本身就是基于消息机制的，所谓的消息就是指发送到主线程当中的消息。之所以产生 ANR 并不是因为主线程当中的任务无限循环，而是因为无限循环导致其他的事件得不到处理。
 
 [《Android 消息机制：Handler、MessageQueue 和 Looper》](https://juejin.im/post/5bdec872e51d4551ee2761cb)
 
