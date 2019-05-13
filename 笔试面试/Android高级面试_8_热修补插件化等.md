@@ -12,6 +12,7 @@ class 文件结构的特点：
 
 class 文件的文件结构：
 
+```
 1. magic                           加密字段
 2. minor_version                   支持最低版本的jdk
 3. major_version                   编译使用的jdk版本
@@ -26,15 +27,19 @@ class 文件的文件结构：
 12. method_info methods            类方法的结构体
 13. attributes_count               类属性的数量
 14. attribute_info attributes      类属性的结构体
+```
 
 dex 文件的结构的特点：
 
+```
 1. 是一种 8 位二进制字节流文件；
 2. 各个数据按顺序紧密的排列，无间隙；
 3. 一般情况下，整个应用所有 java 源文件都放在一个 dex 文件中。
+```
 
 dex 的文件结构分成 3 个区：
 
+```
 1. 第一个区是 header，包括：
     1. header_item dex_header 这个结构体，
 2. 第二个区是索引区，包括：
@@ -47,6 +52,7 @@ dex 的文件结构分成 3 个区：
     1. class_def_item_list dex_class_defs（类的定义）
     2. data
     3. link_data(so)
+```
 
 两者的主要区别：
 
