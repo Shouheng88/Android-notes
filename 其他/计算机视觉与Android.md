@@ -223,7 +223,7 @@ JNI_OnLoad(JavaVM* vm, void* reserved) {
 
 （更多的内容可以参考：[在 Android 中使用 JNI 的总结](https://juejin.im/post/5c79f5d0518825347a56275f)）
 
-## 4、OpenCV 在 Android 中的集成和应用
+## 4、OpenCV 在 Android 中的集成和应用：图片裁剪以及透视变换
 
 ### 4.1 关于 OpenCV 的集成
 
@@ -324,8 +324,10 @@ Java_xxxx_MyCropper_nativeCrop(JNIEnv *env, jclass type, jobject srcBitmap, jobj
     if (points.size() != 4) {
         return;
     }
+    // 取出四个顶点
     Point leftTop = points[0], rightTop = points[1], rightBottom = points[2], leftBottom = points[3];
 
+    // 获取源图和结果图对应的 Mat
     Mat srcBitmapMat, dstBitmapMat;
     bitmap_to_mat(env, srcBitmap, srcBitmapMat);
     AndroidBitmapInfo outBitmapInfo;
@@ -333,6 +335,7 @@ Java_xxxx_MyCropper_nativeCrop(JNIEnv *env, jclass type, jobject srcBitmap, jobj
     int newHeight = outBitmapInfo.height, newWidth = outBitmapInfo.width;
     dstBitmapMat = Mat::zeros(newHeight, newWidth, srcBitmapMat.type());
 
+    // 将图片的顶点放进集合当中，用来调用透视的方法
     std::vector<Point2f> srcTriangle, dstTriangle;
 
     srcTriangle.push_back(Point2f(leftTop.x, leftTop.y));
@@ -345,22 +348,25 @@ Java_xxxx_MyCropper_nativeCrop(JNIEnv *env, jclass type, jobject srcBitmap, jobj
     dstTriangle.push_back(Point2f(0, newHeight));
     dstTriangle.push_back(Point2f(newWidth, newHeight));
 
+    // 获取一个映射的转换矩阵
     Mat transform = getPerspectiveTransform(srcTriangle, dstTriangle);
     warpPerspective(srcBitmapMat, dstBitmapMat, transform, dstBitmapMat.size());
 
+    // 将 Mat 转换成 Bitmap 输出到 Java 层
     mat_to_bitmap(env, dstBitmapMat, outBitmap);
 }
 ```
 
 算法最终的输出结果：
 
-![透视变化和图像切割](res/Screenshot_20190718-003619.jpg)
+<div align="middle"><img src="res/Screenshot_20190718-003619.jpg" alt="透视变化和图像切割" height="300" /></div>
 
-## 5、Tensorflow 在 Android 端的集成和应用
+## 5、Tensorflow 在 Android 端的集成和应用：图片边缘检测
 
-在之前对图片的边缘进行检测的时候，因为发现 OpenCV 算法效果不太理性，所以后来选择使用 TensorFlow 对图片进行边缘检测。这就涉及到在 Android 端集成 Tensorflow Lite。在 Tensorflow 的开源仓库中已经有一些 Sample 可供参考：
+在之前对图片的边缘进行检测的时候，因为发现 OpenCV 算法效果不太理性，所以后来选择使用 TensorFlow 对图片进行边缘检测。这就涉及到在 Android 端集成 Tensorflow Lite。前段时间也看到爱奇艺的 SmartVR 的介绍。借助一些官方的资料，在 Android 端使用 TF 并不难。在 Tensorflow 的开源仓库中已经有一些 Sample 可供参考：
 
-[Tensorflow github repository](https://github.com/tensorflow/tensorflow)
+- [Tensorflow github repository](https://github.com/tensorflow/tensorflow)
+- [Tensorflow lite offical](https://www.tensorflow.org/lite)
 
 做边缘检测当然有些大材小用的味道，但是对于我们 Android 开发者来说，借这个机会了解如何在 Android 端集成一些 Tensorflow 也可以拓展一下。毕竟这种东西属于当下比较热门的东西，说不定哪天心血来潮自己训练一个模型呢 :)
 
@@ -383,7 +389,7 @@ dependencies {
 
 困难的地方在于如何对训练的模型的输入和输出进行处理。因为所谓的模型，你可以将其理解成锻炼出来的一个函数，你只需要按照要求的输入，它就可以按照固定的格式给你返回一个输出。所以，具体的输入和输出是什么样的还要取决于锻炼模型的同学。
 
-在我们之前开发的时候，最初是训练模型的同学使用 Python 代码调用的模型。使用 Python 虽然代码简洁，但是对于客户端开发简直就是噩梦。因为像 NumPy 这种函数库，一行代码的任务，你可能要“翻译”很久。后来，我们使用的是 `C++ + OpenCV` 的形式。对于 iOS 开发，因为他们可以使用 Object-C 与 C++ 混编，所以比较轻松。对于 Android 开发则需要做一些处理。
+在我们之前开发的时候，最初是训练模型的同学使用 Python 代码调用的模型。使用 Python 虽然代码简洁，但是对于客户端开发简直就是噩梦。因为像 [NumPy](https://numpy.org/) 和 [Pillow](https://pillow.readthedocs.io/en/stable/) 这种函数库，一行代码的任务，你可能要“翻译”很久。后来，我们使用的是 `C++ + OpenCV` 的形式。对于 iOS 开发，因为他们可以使用 Object-C 与 C++ 混编，所以比较轻松。对于 Android 开发则需要做一些处理。
 
 下面是加载模型以及在调用 Tensorflow 之前在 Java 层所做的一些处理：
 
@@ -411,7 +417,7 @@ public class TFManager {
         return instance;
     }
 
-    // 加载模型
+    // 从 Assets 中加载模型，用来初始化 TF
     private static MappedByteBuffer loadModelFile(AssetManager assets, String modelFilename) throws IOException {
         AssetFileDescriptor fileDescriptor = assets.openFd(modelFilename);
         FileInputStream inputStream = new FileInputStream(fileDescriptor.getFileDescriptor());
@@ -421,10 +427,10 @@ public class TFManager {
         return fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength);
     }
 
-    // 初始化
+    // 初始化 TF
     private TFManager(Context context) {
         try {
-            interpreter = new Interpreter(loadModelFile(context.getAssets(), "EdgeMask.tflite"));
+            interpreter = new Interpreter(loadModelFile(context.getAssets(), "Model.tflite"));
             interpreter.setNumThreads(1);
             interpreter.resizeInput(0, new int[]{1, 256, 256, 3});
             intValues = new int[inputSize * inputSize];
@@ -444,6 +450,7 @@ public class TFManager {
         for (int i = 0; i < inputSize; ++i) {
             for (int j = 0; j < inputSize; ++j) {
                 int pixelValue = intValues[i * inputSize + j];
+                // 取 RBG 做归一化处理，结果在 -1 到 1 之间
                 imgData.putFloat((((pixelValue >> 16) & 0xFF) - IMAGE_MEAN) / IMAGE_STD); // R
                 imgData.putFloat((((pixelValue >> 8) & 0xFF) - IMAGE_MEAN) / IMAGE_STD); // G
                 imgData.putFloat(((pixelValue & 0xFF) - IMAGE_MEAN) / IMAGE_STD); // B
@@ -481,21 +488,46 @@ public class TFManager {
 }
 ```
 
+这里程序的主要执行流程是：
+
+1. 从 Assets 的模型文件中获取打开输入流，然后从输入流中打开一个管道，这里用到了 NIO 中的一些类。然后，从管道中获取一个字节缓存区。文件读写的时候管道直接与缓冲区进行交互。除了作为一个缓存区，这个缓存区还具有内存映射的功能。类似于 mmap 吧，主要是为了提升文件读写的效率。
+
+2. 初始化并配置 Tensorflow，上面的一些参数用来设置线程数量等信息，比较简单。后面等一些参数主要用来按照模型等要求对 TF 进行调整。比如，我们使用模型来判断图片的顶点的时候使用的是只包含 RGB 三个纬度的 256 * 256 的图片。所以，这里使用了下面几行代码来进行设置：
+
+```java
+// inputSize = 256;
+interpreter.resizeInput(0, new int[]{1, 256, 256, 3});
+intValues = new int[inputSize * inputSize];
+// 256 * 256 的图片，3 个纬度，四张图
+imgData = ByteBuffer.allocateDirect(inputSize * inputSize * 4 * 3);
+```
+
+3. 对要识别对图片进行处理。这里需要先对图片进行放缩，将其控制到 256 * 256 的大小。然后，使用 Bitmap 的方法获取图片的像素。下面的几行代码是对图片对 RBG 三种色彩提取，并分别对其进行归一化处理。处理之后对结果统一写入到 imgData 当中，作为模型对输入。
+
+4. 按照模型对输出对文件的格式构建一个 Java 对象作为模型的输出参数。调用模型的方法进行识别。
+
+5. 对模型对输出结果进行处理。根据我们上述定义对模型输出 `new float[1][256][256][5]`，这里实际对含义是 256 * 256 的 5 张图片。因为模型输出的数据并不是原始的像素信息，所以需要乘以 256 来得到真正的图片的像素。最后就是使用这些像素以及 Bitmap 的方法来得到最终的 Bitmap.
+
+上面调用完了模型但是整个流程还没有结束。因为只是调用模型得到了五张识别之后的图片。这五张图片就是只留下了图片边缘的边框，所以想要得到图片的顶点还需要继续对这五张图进行处理。这部分需要一些算法，虽然在 Java 层去判断也是可以的，但是在 native 层，借助 OpenCV 的一些库可以使整个过程更加简单。因此，这里又要涉及一个 JNI 调用：
+
 ```C++
 extern "C"
 JNIEXPORT void JNICALL
 Java_com_xxx_ImgProc_nativeFindEdges(JNIEnv *env, jclass type, jintArray mask1_, jintArray mask2_,
                                                         jintArray mask3_, jintArray mask4_, jintArray mask5_,
                                                         jobject origin, jobjectArray points) {
+    // 从 Java 中传入的数组元素
     jint *mask1 = env->GetIntArrayElements(mask1_, NULL);
     jint *mask2 = env->GetIntArrayElements(mask2_, NULL);
     jint *mask3 = env->GetIntArrayElements(mask3_, NULL);
     jint *mask4 = env->GetIntArrayElements(mask4_, NULL);
     jint *mask5 = env->GetIntArrayElements(mask5_, NULL);
 
+    // 原图转换成 Native 层的 mat
     Mat originMat;
     bitmap_to_mat(env, origin, originMat);
 
+    // 构建一个集合
     std::vector<jint*> jints;
     jints.push_back(mask1);
     jints.push_back(mask2);
@@ -503,6 +535,7 @@ Java_com_xxx_ImgProc_nativeFindEdges(JNIEnv *env, jclass type, jintArray mask1_,
     jints.push_back(mask4);
     jints.push_back(mask5);
 
+    // 从像素点中得到对应的 Mat 并将其放到一个集合当中
     std::vector<cv::Mat> masks;
     for (int k = 0; k < 5; ++k) {
         Mat mask(256, 256, CV_8UC1);
@@ -515,11 +548,14 @@ Java_com_xxx_ImgProc_nativeFindEdges(JNIEnv *env, jclass type, jintArray mask1_,
     }
 
     try {
+        // 调用算法进行边缘检测
         EdgeFinder finder = ImageEngine::EdgeFinder(
                 originMat, masks[0], masks[1], masks[2], masks[3], masks[4]);
         vector<cv::Point2d> retPoints = finder.FindBorderCrossPoint();
+        // 将得到的“点”转换成 Java 层的对象
         jclass class_point = env->FindClass("com/xxx/EdgePoint");
         jmethodID method_point = env->GetMethodID(class_point, "<init>", "(FF)V");
+        // 将顶点组成一个 Java 数组返回
         for (int i = 0; i < 4; ++i) {
             jobject point = env->NewObject(class_point, method_point, retPoints[i].x, retPoints[i].y);
             env->SetObjectArrayElement(points, i, point);
@@ -534,6 +570,7 @@ Java_com_xxx_ImgProc_nativeFindEdges(JNIEnv *env, jclass type, jintArray mask1_,
         return;
     }
 
+    // 释放资源
     env->ReleaseIntArrayElements(mask1_, mask1, 0);
     env->ReleaseIntArrayElements(mask2_, mask2, 0);
     env->ReleaseIntArrayElements(mask3_, mask3, 0);
@@ -542,4 +579,28 @@ Java_com_xxx_ImgProc_nativeFindEdges(JNIEnv *env, jclass type, jintArray mask1_,
 }
 ```
 
+这里的主要逻辑是把之前得到的像素以及原始图片的 Bitmap 统一传入到 native 层，然后这些像素中得到 OpenCV 对应的 Mat，再一起作为算法的参数调用算法来得到顶点信息。最后把得到的顶点信息映射成 Java 层的类，并将其放在数组中返回即可。
 
+从上面的流程中也可以看出，整个调用流程实际上进行了多次的 JNI 调用：
+
+1. 调用 Bitmap 的方法本身就是一次 JNI 调用，调用了 Android 底层的 Skia 的库来实现图片处理；
+2. TF-Lite 本身就是对 native 层方法的一个封装，调用其方法也涉及到 JNI 调用；
+3. 最后是对模型识别的结果进行处理，这也涉及 JNI 调用。
+
+JNI 调用的时候需要进行额外的转换操作，需要在函数开始的时候把 Java 层的对象转换成 native 层的对象，在算法调用完毕之后再将 native 层的对象转换成 Java 层的对象。这是我们以后可以优化的一个地方。
+
+## 总结
+
+以上就是计算机视觉在 Android 中的应用，主要涉及 JNI 的一些内容，以及 OpenCV 和 Tensorflow 的一些应用。再这之前介绍了图片压缩和相机库的一些封装，如果你的程序中需要一些图片处理的功能的话，我想这些东西肯定是对你有用的 :D
+
+-------
+
+关注作者获取更多知识：
+
+- 掘金：[https://juejin.im/user/585555e11b69e6006c907a2a](https://juejin.im/user/585555e11b69e6006c907a2a)
+- Github：[https://github.com/Shouheng88](https://github.com/Shouheng88)
+- CSDN：[https://blog.csdn.net/github_35186068](https://blog.csdn.net/github_35186068)
+- 微博：[https://weibo.com/u/5401152113](https://weibo.com/u/5401152113)
+- 博客：[https://shouheng88.github.io/](https://shouheng88.github.io/)
+
+更多知识请参考 [Github, Android-notes](https://github.com/Shouheng88/Android-notes)。
