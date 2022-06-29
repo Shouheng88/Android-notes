@@ -1,4 +1,4 @@
-# Android
+# Android [DEPRECATED]
 
 ## 1、目录
 
